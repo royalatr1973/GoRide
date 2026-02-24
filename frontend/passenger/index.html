@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GoRide - Book Your Ride</title>
+  <link rel="stylesheet" href="/common/styles.css">
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+  <!-- Auth Section -->
+  <div id="auth-section">
+    <div class="auth-container">
+      <div class="auth-logo">
+        <h1>GoRide</h1>
+        <p class="text-gray">Affordable rides, anytime</p>
+      </div>
+
+      <!-- Login Form -->
+      <div id="login-form" class="card">
+        <h2>Welcome Back</h2>
+        <form onsubmit="handleLogin(event)">
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" class="form-control" id="login-email" placeholder="your@email.com" required>
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" class="form-control" id="login-password" placeholder="Enter password" required>
+          </div>
+          <button type="submit" class="btn btn-primary" id="login-btn">Login</button>
+        </form>
+        <p class="text-center mt-16 text-sm">
+          Don't have an account? <a href="#" onclick="toggleAuth('register')">Register</a>
+        </p>
+      </div>
+
+      <!-- Register Form -->
+      <div id="register-form" class="card" style="display:none">
+        <h2>Create Account</h2>
+        <form onsubmit="handleRegister(event)">
+          <div class="flex gap-8">
+            <div class="form-group" style="flex:1">
+              <label>First Name</label>
+              <input type="text" class="form-control" id="reg-firstname" required>
+            </div>
+            <div class="form-group" style="flex:1">
+              <label>Last Name</label>
+              <input type="text" class="form-control" id="reg-lastname" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" class="form-control" id="reg-email" required>
+          </div>
+          <div class="form-group">
+            <label>Phone</label>
+            <input type="tel" class="form-control" id="reg-phone" placeholder="+91..." required>
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" class="form-control" id="reg-password" minlength="6" required>
+          </div>
+          <div class="form-group">
+            <label>I am a</label>
+            <select class="form-control" id="reg-usertype">
+              <option value="passenger">Passenger</option>
+              <option value="driver">Driver</option>
+              <option value="operator">Operator</option>
+            </select>
+          </div>
+          <!-- Driver fields -->
+          <div id="driver-fields" style="display:none">
+            <div class="form-group">
+              <label>License Number</label>
+              <input type="text" class="form-control" id="reg-license">
+            </div>
+            <div class="form-group">
+              <label>License Expiry</label>
+              <input type="date" class="form-control" id="reg-license-expiry">
+            </div>
+          </div>
+          <!-- Operator fields -->
+          <div id="operator-fields" style="display:none">
+            <div class="form-group">
+              <label>Company Name</label>
+              <input type="text" class="form-control" id="reg-company">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">Create Account</button>
+        </form>
+        <p class="text-center mt-16 text-sm">
+          Already have an account? <a href="#" onclick="toggleAuth('login')">Login</a>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main App (after login) -->
+  <div id="app-section" style="display:none">
+    <!-- Header -->
+    <div class="header">
+      <h1>GoRide</h1>
+      <div class="flex gap-8">
+        <span id="user-greeting" class="text-sm"></span>
+        <button onclick="handleLogout()" class="back-btn" title="Logout">&#x2716;</button>
+      </div>
+    </div>
+
+    <!-- Pages -->
+    <div id="page-home" class="page container">
+      <!-- Book Ride Card -->
+      <div class="card mt-16">
+        <h3>Where to?</h3>
+        <div class="form-group mt-8">
+          <label>Pickup Location</label>
+          <input type="text" class="form-control" id="pickup-address" placeholder="Enter pickup address">
+          <div class="flex gap-8 mt-8">
+            <input type="number" class="form-control" id="pickup-lat" placeholder="Latitude" step="any">
+            <input type="number" class="form-control" id="pickup-lng" placeholder="Longitude" step="any">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Drop Location</label>
+          <input type="text" class="form-control" id="drop-address" placeholder="Enter drop address">
+          <div class="flex gap-8 mt-8">
+            <input type="number" class="form-control" id="drop-lat" placeholder="Latitude" step="any">
+            <input type="number" class="form-control" id="drop-lng" placeholder="Longitude" step="any">
+          </div>
+        </div>
+        <div class="flex gap-8">
+          <div class="form-group" style="flex:1">
+            <label>Vehicle Type</label>
+            <select class="form-control" id="vehicle-type">
+              <option value="sedan">Sedan</option>
+              <option value="suv">SUV</option>
+              <option value="hatchback">Hatchback</option>
+              <option value="auto">Auto</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex:1">
+            <label>Payment</label>
+            <select class="form-control" id="payment-method">
+              <option value="cash">Cash</option>
+              <option value="upi">UPI</option>
+              <option value="card">Card</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-sm mb-16" onclick="getFareEstimate()">Get Fare Estimate</button>
+        <div id="fare-estimate" class="card" style="display:none; background: var(--light)">
+          <div class="flex-between">
+            <span>Distance</span><strong id="est-distance">-</strong>
+          </div>
+          <div class="flex-between">
+            <span>Duration</span><strong id="est-duration">-</strong>
+          </div>
+          <div class="flex-between mt-8" style="font-size:1.25rem">
+            <span>Estimated Fare</span><strong id="est-fare" style="color:var(--primary)">-</strong>
+          </div>
+        </div>
+        <button class="btn btn-primary mt-16" onclick="bookRide()" id="book-btn">Book Ride</button>
+      </div>
+
+      <!-- Active Ride -->
+      <div id="active-ride-section" style="display:none">
+        <div class="card mt-16">
+          <div class="flex-between mb-16">
+            <h3>Your Ride</h3>
+            <span id="ride-status-badge" class="badge"></span>
+          </div>
+          <div id="ride-driver-info" style="display:none" class="flex gap-16 mb-16">
+            <div>
+              <strong id="driver-name">-</strong>
+              <div class="text-sm text-gray" id="driver-rating">-</div>
+              <div class="text-sm" id="driver-vehicle">-</div>
+            </div>
+          </div>
+          <div class="map-container" id="tracking-map">
+            <div class="flex-center" style="height:100%; color:var(--gray)">
+              <p>Live tracking map</p>
+            </div>
+          </div>
+          <div class="ride-card mt-16">
+            <div class="locations">
+              <div class="location-item">
+                <div class="location-dot pickup"></div>
+                <span id="ride-pickup">-</span>
+              </div>
+              <div class="location-item">
+                <div class="location-dot drop"></div>
+                <span id="ride-drop">-</span>
+              </div>
+            </div>
+            <div class="ride-info">
+              <span>Fare: <strong id="ride-fare">-</strong></span>
+            </div>
+          </div>
+          <button class="btn btn-danger mt-16" onclick="cancelRide()" id="cancel-ride-btn">Cancel Ride</button>
+        </div>
+      </div>
+
+      <!-- Recent Rides -->
+      <div class="mt-16">
+        <h3>Recent Rides</h3>
+        <div id="recent-rides"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+    <!-- Ride History Page -->
+    <div id="page-history" class="page container" style="display:none">
+      <h2 class="mt-16">Ride History</h2>
+      <div id="ride-history-list" class="mt-16"><div class="spinner"></div></div>
+    </div>
+
+    <!-- Profile Page -->
+    <div id="page-profile" class="page container" style="display:none">
+      <h2 class="mt-16">Your Profile</h2>
+      <div id="profile-content" class="mt-16"></div>
+    </div>
+
+    <!-- Bottom Nav -->
+    <nav class="bottom-nav">
+      <a href="#" onclick="showPage('home')" class="active" id="nav-home">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        Home
+      </a>
+      <a href="#" onclick="showPage('history')" id="nav-history">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 3a9 9 0 00-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0013 21a9 9 0 000-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+        History
+      </a>
+      <a href="#" onclick="showPage('profile')" id="nav-profile">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+        Profile
+      </a>
+    </nav>
+  </div>
+
+  <!-- Rating Modal -->
+  <div class="modal-overlay" id="rating-modal">
+    <div class="modal">
+      <h2>Rate Your Ride</h2>
+      <div class="stars mt-16" id="rating-stars">
+        <span class="star" onclick="setRating(1)">&#9733;</span>
+        <span class="star" onclick="setRating(2)">&#9733;</span>
+        <span class="star" onclick="setRating(3)">&#9733;</span>
+        <span class="star" onclick="setRating(4)">&#9733;</span>
+        <span class="star" onclick="setRating(5)">&#9733;</span>
+      </div>
+      <div class="form-group mt-16">
+        <textarea class="form-control" id="rating-review" placeholder="Write a review (optional)" rows="3"></textarea>
+      </div>
+      <button class="btn btn-primary" onclick="submitRating()">Submit Rating</button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/common/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

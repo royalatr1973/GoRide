@@ -1,0 +1,43 @@
+/* Passenger-specific styles */
+.auth-container {
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 40px 16px;
+}
+
+.auth-logo {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.auth-logo h1 {
+  font-size: 2.5rem;
+  color: var(--primary);
+  letter-spacing: -1px;
+}
+
+.auth-logo p {
+  margin-top: 4px;
+}
+
+#fare-estimate {
+  border: 1px solid var(--border);
+}
+
+#active-ride-section .map-container {
+  min-height: 200px;
+  background: linear-gradient(135deg, #e0f2fe 0%, #dbeafe 100%);
+}
+
+.driver-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.25rem;
+}
