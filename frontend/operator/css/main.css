@@ -1,0 +1,107 @@
+/* Operator-specific styles */
+
+/* === Stats Grid === */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.stat-card {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 16px 12px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.stat-card.accent-green { border-left: 3px solid var(--secondary); }
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--gray);
+  margin-top: 4px;
+}
+
+/* === Driver / Vehicle Cards === */
+.entity-card {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 14px;
+  box-shadow: var(--shadow);
+  margin-bottom: 10px;
+}
+.entity-card .entity-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.entity-card .entity-detail {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 0.875rem;
+}
+.entity-card .entity-detail .label { color: var(--gray); }
+.entity-card .entity-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.entity-card .entity-actions .btn { width: auto; font-size: 0.8rem; padding: 6px 12px; }
+
+/* === Entity Avatar === */
+.entity-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1rem;
+  flex-shrink: 0;
+  color: white;
+}
+.entity-avatar.driver-av { background: var(--primary); }
+.entity-avatar.vehicle-av { background: var(--secondary); }
+
+/* === Period Buttons === */
+.period-btn {
+  width: auto;
+  flex: 1;
+}
+.period-btn.active {
+  background: var(--primary);
+  color: var(--white);
+  border-color: var(--primary);
+}
+
+/* === Pagination === */
+.page-btn {
+  width: auto;
+  padding: 6px 14px;
+  font-size: 0.875rem;
+}
+.page-btn.active {
+  background: var(--primary);
+  color: var(--white);
+}
+
+/* === Bottom nav 5 items fit === */
+.bottom-nav a {
+  font-size: 0.65rem;
+  padding: 4px 4px;
+}
+.bottom-nav a svg {
+  width: 22px;
+  height: 22px;
+}
