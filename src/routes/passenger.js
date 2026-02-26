@@ -17,22 +17,62 @@ router.post('/geocode', async (req, res, next) => {
       text: Joi.string().max(500).required(),
     }).validateAsync(req.body);
 
-    const response = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
+    // Check if input is already coordinates (lat,lng)
+    const coordMatch = text.match(/^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$/);
+    if (coordMatch) {
+      const lat = parseFloat(coordMatch[1]);
+      const lng = parseFloat(coordMatch[2]);
+      // Reverse geocode the coordinates to get an address
+      try {
+        const revRes = await axios.get('https://nominatim.openstreetmap.org/reverse', {
+          params: { lat, lon: lng, format: 'json' },
+          headers: { 'User-Agent': 'FreedomRide-Dev/1.0' },
+        });
+        return res.json({ lat, lng, address: revRes.data.display_name || `${lat},${lng}` });
+      } catch {
+        return res.json({ lat, lng, address: `${lat},${lng}` });
+      }
+    }
+
+    // Try Google Maps if API key is configured
+    if (process.env.GOOGLE_CLOUD_API_KEY && process.env.GOOGLE_CLOUD_API_KEY !== 'your-google-cloud-api-key') {
+      const response = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
+        params: {
+          address: `${text}, Chennai, Tamil Nadu`,
+          key: process.env.GOOGLE_CLOUD_API_KEY,
+        },
+      });
+
+      const result = response.data.results[0];
+      if (result) {
+        return res.json({
+          lat: result.geometry.location.lat,
+          lng: result.geometry.location.lng,
+          address: result.formatted_address,
+        });
+      }
+    }
+
+    // Fallback: free OpenStreetMap Nominatim geocoding
+    const nomResponse = await axios.get('https://nominatim.openstreetmap.org/search', {
       params: {
-        address: `${text}, Chennai, Tamil Nadu`,
-        key: process.env.GOOGLE_CLOUD_API_KEY,
+        q: `${text}, Chennai, Tamil Nadu, India`,
+        format: 'json',
+        limit: 1,
+        addressdetails: 1,
       },
+      headers: { 'User-Agent': 'FreedomRide-Dev/1.0' },
     });
 
-    const result = response.data.results[0];
-    if (!result) {
+    const nomResult = nomResponse.data[0];
+    if (!nomResult) {
       return res.status(404).json({ error: 'Location not found' });
     }
 
     res.json({
-      lat: result.geometry.location.lat,
-      lng: result.geometry.location.lng,
-      address: result.formatted_address,
+      lat: parseFloat(nomResult.lat),
+      lng: parseFloat(nomResult.lon),
+      address: nomResult.display_name,
     });
   } catch (err) {
     next(err);
@@ -47,15 +87,28 @@ router.post('/reverse-geocode', async (req, res, next) => {
       lng: Joi.number().min(-180).max(180).required(),
     }).validateAsync(req.body);
 
-    const response = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
-      params: {
-        latlng: `${lat},${lng}`,
-        key: process.env.GOOGLE_CLOUD_API_KEY,
-      },
+    // Try Google Maps if API key is configured
+    if (process.env.GOOGLE_CLOUD_API_KEY && process.env.GOOGLE_CLOUD_API_KEY !== 'your-google-cloud-api-key') {
+      const response = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
+        params: {
+          latlng: `${lat},${lng}`,
+          key: process.env.GOOGLE_CLOUD_API_KEY,
+        },
+      });
+
+      const result = response.data.results[0];
+      if (result) {
+        return res.json({ address: result.formatted_address });
+      }
+    }
+
+    // Fallback: free OpenStreetMap Nominatim reverse geocoding
+    const nomResponse = await axios.get('https://nominatim.openstreetmap.org/reverse', {
+      params: { lat, lon: lng, format: 'json' },
+      headers: { 'User-Agent': 'FreedomRide-Dev/1.0' },
     });
 
-    const result = response.data.results[0];
-    res.json({ address: result ? result.formatted_address : 'Unknown location' });
+    res.json({ address: nomResponse.data.display_name || 'Unknown location' });
   } catch (err) {
     next(err);
   }
@@ -70,23 +123,43 @@ router.post('/calculate-route', async (req, res, next) => {
     });
     const { pickup, dropoff } = await schema.validateAsync(req.body);
 
-    // Get route from Google Directions API
-    const response = await axios.get('https://maps.googleapis.com/maps/api/directions/json', {
-      params: {
-        origin: `${pickup.lat},${pickup.lng}`,
-        destination: `${dropoff.lat},${dropoff.lng}`,
-        key: process.env.GOOGLE_CLOUD_API_KEY,
-      },
-    });
+    let distanceKm, durationMinutes, polylinePoints;
 
-    const route = response.data.routes[0];
-    if (!route) {
-      return res.status(404).json({ error: 'No route found' });
+    // Try Google Directions API if key is configured
+    if (process.env.GOOGLE_CLOUD_API_KEY && process.env.GOOGLE_CLOUD_API_KEY !== 'your-google-cloud-api-key') {
+      const response = await axios.get('https://maps.googleapis.com/maps/api/directions/json', {
+        params: {
+          origin: `${pickup.lat},${pickup.lng}`,
+          destination: `${dropoff.lat},${dropoff.lng}`,
+          key: process.env.GOOGLE_CLOUD_API_KEY,
+        },
+      });
+
+      const route = response.data.routes[0];
+      if (route) {
+        const leg = route.legs[0];
+        distanceKm = leg.distance.value / 1000;
+        durationMinutes = Math.ceil(leg.duration.value / 60);
+        polylinePoints = route.overview_polyline.points;
+      }
     }
 
-    const leg = route.legs[0];
-    const distanceKm = leg.distance.value / 1000;
-    const durationMinutes = Math.ceil(leg.duration.value / 60);
+    // Fallback: free OSRM routing
+    if (!distanceKm) {
+      const osrmRes = await axios.get(
+        `https://router.project-osrm.org/route/v1/driving/${pickup.lng},${pickup.lat};${dropoff.lng},${dropoff.lat}`,
+        { params: { overview: 'full', geometries: 'polyline' } }
+      );
+
+      const osrmRoute = osrmRes.data.routes[0];
+      if (!osrmRoute) {
+        return res.status(404).json({ error: 'No route found' });
+      }
+
+      distanceKm = osrmRoute.distance / 1000;
+      durationMinutes = Math.ceil(osrmRoute.duration / 60);
+      polylinePoints = osrmRoute.geometry;
+    }
 
     // Get fare configs from all active operators
     const fareConfigs = await db('fare_config')
@@ -113,7 +186,7 @@ router.post('/calculate-route', async (req, res, next) => {
     res.json({
       distance_km: Math.round(distanceKm * 100) / 100,
       duration_minutes: durationMinutes,
-      polyline: route.overview_polyline.points,
+      polyline: polylinePoints,
       fares,
     });
   } catch (err) {
