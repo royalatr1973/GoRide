@@ -6,3 +6,5 @@ dist/
 .DS_Store
 operator-dashboard/node_modules/
 operator-dashboard/build/
+passenger-app/node_modules/
+passenger-app/build/
