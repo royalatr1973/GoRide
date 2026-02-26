@@ -23,6 +23,9 @@ app.use(express.urlencoded({ extended: true }));
 // Serve operator dashboard static files
 app.use('/dashboard', express.static(path.join(__dirname, '../operator-dashboard/build')));
 
+// Serve passenger app static files
+app.use(express.static(path.join(__dirname, '../passenger-app/build')));
+
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/passenger', passengerRoutes);
@@ -33,6 +36,14 @@ app.use('/api/voice', voiceRoutes);
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'Freedom Ride API', timestamp: new Date().toISOString() });
+});
+
+// Serve passenger app for all non-API routes (SPA fallback)
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/dashboard')) {
+    return next();
+  }
+  res.sendFile(path.join(__dirname, '../passenger-app/build', 'index.html'));
 });
 
 // Error handler
