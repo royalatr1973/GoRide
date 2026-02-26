@@ -33,6 +33,7 @@ export const authAPI = {
 };
 
 export const passengerAPI = {
+  autocomplete: (text) => api.post('/passenger/autocomplete', { text }),
   geocode: (text) => api.post('/passenger/geocode', { text }),
   reverseGeocode: (lat, lng) => api.post('/passenger/reverse-geocode', { lat, lng }),
   calculateRoute: (pickup, dropoff) => api.post('/passenger/calculate-route', { pickup, dropoff }),

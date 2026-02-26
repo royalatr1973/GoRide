@@ -5,7 +5,7 @@ function calculateFare({ baseFare, perKmRate, perMinuteRate, minimumFare, distan
   let fare = baseFare + (distanceKm * perKmRate) + (durationMinutes * perMinuteRate);
   if (fare < minimumFare) fare = minimumFare;
   fare *= surgeMultiplier;
-  return Math.round(fare); // Round to nearest rupee
+  return { total: Math.round(fare), base: Math.round(baseFare), surge: surgeMultiplier };
 }
 
 module.exports = { calculateFare };

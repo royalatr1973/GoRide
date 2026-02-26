@@ -10,6 +10,62 @@ const { findAndAssignDriver } = require('../services/driverMatching');
 const router = express.Router();
 router.use(authenticate, authorizeRole('passenger'));
 
+// POST /api/passenger/autocomplete — suggest locations as user types
+router.post('/autocomplete', async (req, res, next) => {
+  try {
+    const { text } = await Joi.object({
+      text: Joi.string().max(500).required(),
+    }).validateAsync(req.body);
+
+    // Try Google Places Autocomplete if API key is configured
+    if (process.env.GOOGLE_CLOUD_API_KEY && process.env.GOOGLE_CLOUD_API_KEY !== 'your-google-cloud-api-key') {
+      try {
+        const response = await axios.get('https://maps.googleapis.com/maps/api/place/autocomplete/json', {
+          params: {
+            input: text,
+            components: 'country:in',
+            location: '13.0827,80.2707', // Chennai center
+            radius: 50000,
+            key: process.env.GOOGLE_CLOUD_API_KEY,
+          },
+        });
+
+        if (response.data.predictions && response.data.predictions.length > 0) {
+          return res.json({
+            suggestions: response.data.predictions.map((p) => ({
+              description: p.description,
+              place_id: p.place_id,
+            })),
+          });
+        }
+      } catch {
+        // Fall through to Nominatim
+      }
+    }
+
+    // Fallback: free OpenStreetMap Nominatim search
+    const nomResponse = await axios.get('https://nominatim.openstreetmap.org/search', {
+      params: {
+        q: `${text}, Chennai, Tamil Nadu, India`,
+        format: 'json',
+        limit: 5,
+        addressdetails: 1,
+      },
+      headers: { 'User-Agent': 'FreedomRide-Dev/1.0' },
+    });
+
+    res.json({
+      suggestions: nomResponse.data.map((r) => ({
+        description: r.display_name,
+        lat: parseFloat(r.lat),
+        lng: parseFloat(r.lon),
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/passenger/geocode — convert place name to coordinates
 router.post('/geocode', async (req, res, next) => {
   try {
