@@ -83,7 +83,9 @@ function MapConfirmation() {
     const centerLat = (pLat + dLat) / 2;
     const centerLng = (pLng + dLng) / 2;
 
-    const map = L.map(mapRef.current, {
+    const mapEl = mapRef.current;
+
+    const map = L.map(mapEl, {
       zoomControl: false,
       attributionControl: false,
     }).setView([centerLat, centerLng], 13);
@@ -93,6 +95,11 @@ function MapConfirmation() {
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
     }).addTo(map);
+
+    // Force Leaflet to recalculate container size
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 100);
 
     // Add markers
     L.marker([pLat, pLng], { icon: greenIcon })
@@ -177,7 +184,9 @@ function MapConfirmation() {
 
       {pickupCoords && dropoffCoords && (
         <>
-          <div className="map-container" ref={mapRef}></div>
+          <div className="map-container">
+            <div ref={mapRef} style={{ height: '100%', width: '100%' }}></div>
+          </div>
 
           <div className="map-locations">
             <div className="map-location-item">
