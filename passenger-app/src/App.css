@@ -897,3 +897,84 @@ button {
 }
 
 .voice-input button:disabled { opacity: 0.5; }
+
+/* ===== Map Confirmation ===== */
+.map-confirm-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.map-container {
+  flex: 1;
+  min-height: 300px;
+  z-index: 1;
+}
+
+.map-locations {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  background: white;
+}
+
+.map-location-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.map-location-item .dot {
+  margin-top: 4px;
+}
+
+.map-location-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.map-location-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+}
+
+.map-location-address {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-actions {
+  padding: 16px 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: white;
+}
+
+.btn-change {
+  background: none;
+  border: 2px solid var(--border);
+  padding: 12px 28px;
+  border-radius: var(--radius);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  width: 100%;
+  transition: all 0.2s;
+}
+
+.btn-change:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}

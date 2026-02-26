@@ -12,7 +12,7 @@ function Home() {
 
   const handleSearch = () => {
     if (pickup.trim() && dropoff.trim()) {
-      navigate('/booking', { state: { pickup, dropoff } });
+      navigate('/confirm-map', { state: { pickup, dropoff } });
     }
   };
 

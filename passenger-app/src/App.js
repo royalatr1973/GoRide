@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import Booking from './pages/Booking';
+import MapConfirmation from './pages/MapConfirmation';
 import RideTracker from './pages/RideTracker';
 import History from './pages/History';
 import Profile from './pages/Profile';
@@ -21,6 +22,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+      <Route path="/confirm-map" element={<ProtectedRoute><MapConfirmation /></ProtectedRoute>} />
       <Route path="/booking" element={<ProtectedRoute><Booking /></ProtectedRoute>} />
       <Route path="/ride/:id" element={<ProtectedRoute><RideTracker /></ProtectedRoute>} />
       <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />

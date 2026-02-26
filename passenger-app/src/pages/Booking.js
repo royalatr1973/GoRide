@@ -7,10 +7,10 @@ import VehicleSelector from '../components/VehicleSelector';
 function Booking() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { pickup, dropoff } = location.state || {};
+  const { pickup, dropoff, pickupCoords: prePickupCoords, dropoffCoords: preDropoffCoords } = location.state || {};
 
-  const [pickupCoords, setPickupCoords] = useState(null);
-  const [dropoffCoords, setDropoffCoords] = useState(null);
+  const [pickupCoords, setPickupCoords] = useState(prePickupCoords || null);
+  const [dropoffCoords, setDropoffCoords] = useState(preDropoffCoords || null);
   const [routeInfo, setRouteInfo] = useState(null);
   const [selectedVehicle, setSelectedVehicle] = useState('auto');
   const [loading, setLoading] = useState(true);
@@ -27,18 +27,26 @@ function Booking() {
 
   const fetchRoute = async () => {
     try {
-      // Geocode pickup
-      const pickupRes = await passengerAPI.geocode(pickup);
-      setPickupCoords(pickupRes.data);
+      let pCoords = pickupCoords;
+      let dCoords = dropoffCoords;
 
-      // Geocode dropoff
-      const dropoffRes = await passengerAPI.geocode(dropoff);
-      setDropoffCoords(dropoffRes.data);
+      // Only geocode if we don't have pre-geocoded coords from map confirmation
+      if (!pCoords) {
+        const pickupRes = await passengerAPI.geocode(pickup);
+        pCoords = pickupRes.data;
+        setPickupCoords(pCoords);
+      }
+
+      if (!dCoords) {
+        const dropoffRes = await passengerAPI.geocode(dropoff);
+        dCoords = dropoffRes.data;
+        setDropoffCoords(dCoords);
+      }
 
       // Calculate route
       const routeRes = await passengerAPI.calculateRoute(
-        { lat: pickupRes.data.lat, lng: pickupRes.data.lng },
-        { lat: dropoffRes.data.lat, lng: dropoffRes.data.lng }
+        { lat: pCoords.lat, lng: pCoords.lng },
+        { lat: dCoords.lat, lng: dCoords.lng }
       );
       setRouteInfo(routeRes.data);
     } catch (err) {
