@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { passengerAPI } from '../api';
 import Header from '../components/Header';
 import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 
 // Fix default marker icons (leaflet + webpack issue)
 delete L.Icon.Default.prototype._getIconUrl;
@@ -65,7 +64,7 @@ function MapConfirmation() {
     setLoading(false);
   };
 
-  useEffect(() => {
+  const initMap = useCallback(() => {
     if (!pickupCoords || !dropoffCoords || !mapRef.current) return;
 
     // Clean up previous map instance
@@ -79,27 +78,16 @@ function MapConfirmation() {
     const dLat = dropoffCoords.lat;
     const dLng = dropoffCoords.lng;
 
-    // Center map between both points
     const centerLat = (pLat + dLat) / 2;
     const centerLng = (pLng + dLng) / 2;
 
-    const mapEl = mapRef.current;
-
-    const map = L.map(mapEl, {
-      zoomControl: false,
-      attributionControl: false,
-    }).setView([centerLat, centerLng], 13);
-
+    const map = L.map(mapRef.current).setView([centerLat, centerLng], 13);
     mapInstanceRef.current = map;
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
+      attribution: '&copy; OpenStreetMap',
     }).addTo(map);
-
-    // Force Leaflet to recalculate container size
-    setTimeout(() => {
-      map.invalidateSize();
-    }, 100);
 
     // Add markers
     L.marker([pLat, pLng], { icon: greenIcon })
@@ -110,11 +98,21 @@ function MapConfirmation() {
       .addTo(map)
       .bindPopup('<b>Drop-off</b><br>' + (dropoffCoords.address || dropoff));
 
-    // Draw route line
+    // Draw dashed line as immediate fallback
     const routeLine = L.polyline(
       [[pLat, pLng], [dLat, dLng]],
       { color: '#4f46e5', weight: 4, opacity: 0.7, dashArray: '10, 8' }
     ).addTo(map);
+
+    // Fit both markers in view
+    const bounds = L.latLngBounds([[pLat, pLng], [dLat, dLng]]);
+    map.fitBounds(bounds.pad(0.3));
+
+    // Force recalculate after render
+    setTimeout(() => {
+      map.invalidateSize();
+      map.fitBounds(bounds.pad(0.3));
+    }, 200);
 
     // Try to get actual route from OSRM
     fetch(
@@ -136,18 +134,17 @@ function MapConfirmation() {
       .catch(() => {
         // Keep the straight dashed line as fallback
       });
+  }, [pickupCoords, dropoffCoords, pickup, dropoff]);
 
-    // Fit both markers in view
-    const bounds = L.latLngBounds([[pLat, pLng], [dLat, dLng]]);
-    map.fitBounds(bounds.pad(0.2));
-
+  useEffect(() => {
+    initMap();
     return () => {
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
       }
     };
-  }, [pickupCoords, dropoffCoords]);
+  }, [initMap]);
 
   const handleConfirm = () => {
     navigate('/booking', {
@@ -184,9 +181,11 @@ function MapConfirmation() {
 
       {pickupCoords && dropoffCoords && (
         <>
-          <div className="map-container">
-            <div ref={mapRef} style={{ height: '100%', width: '100%' }}></div>
-          </div>
+          <div
+            ref={mapRef}
+            id="confirm-map"
+            style={{ width: '100%', height: '50vh', minHeight: '300px' }}
+          ></div>
 
           <div className="map-locations">
             <div className="map-location-item">

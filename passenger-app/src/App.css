@@ -902,22 +902,7 @@ button {
 .map-confirm-page {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
-}
-
-.map-container {
-  flex: 1;
-  min-height: 0;
-  height: 50vh;
-  width: 100%;
-  z-index: 1;
-  background: #e5e7eb;
-}
-
-.map-container .leaflet-container {
-  height: 100%;
-  width: 100%;
+  min-height: 100vh;
 }
 
 .map-locations {
