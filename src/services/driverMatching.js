@@ -1,17 +1,14 @@
 const db = require('../db/connection');
 const { haversineDistance } = require('../utils/geo');
 
-const MAX_RADIUS_KM = 5;
-const REQUEST_TIMEOUT_SEC = 15;
-const MAX_ATTEMPTS = 5;
+const MAX_RADIUS_KM = 50;
+const AUTO_ACCEPT_DELAY_SEC = 5;
 
 /**
  * Driver matching algorithm:
- * 1. Find online drivers with matching vehicle type within 5km
+ * 1. Find online drivers with matching vehicle type within radius
  * 2. Score by: distance (50%), rating (30%), acceptance rate (20%)
- * 3. Send request to top driver with 15-second timeout
- * 4. If declined/expired, try next driver
- * 5. After 5 failures → no drivers available
+ * 3. Auto-assign best available driver after a short delay
  */
 async function findAndAssignDriver(rideId) {
   const ride = await db('rides').where({ id: rideId }).first();
@@ -59,87 +56,70 @@ async function findAndAssignDriver(rideId) {
     return;
   }
 
-  // Try drivers one by one
-  const alreadyDeclined = await db('ride_requests')
-    .where({ ride_id: rideId })
-    .whereIn('status', ['declined', 'expired'])
-    .pluck('driver_id');
+  // Simulate realistic search delay before assigning
+  await sleep(AUTO_ACCEPT_DELAY_SEC * 1000);
 
-  const eligible = scored.filter((d) => !alreadyDeclined.includes(d.id));
-  let attempts = 0;
+  // Re-check ride status (may have been cancelled during wait)
+  const currentRide = await db('rides').where({ id: rideId }).first();
+  if (currentRide.status !== 'searching') return;
 
-  for (const driver of eligible) {
-    if (attempts >= MAX_ATTEMPTS) break;
+  const driver = scored[0];
 
-    // Re-check ride status (may have been cancelled)
-    const currentRide = await db('rides').where({ id: rideId }).first();
-    if (currentRide.status !== 'searching') return;
+  // Create ride request and auto-accept it
+  const [request] = await db('ride_requests').insert({
+    ride_id: rideId,
+    driver_id: driver.id,
+    status: 'accepted',
+    expires_at: new Date(Date.now() + 30000),
+  }).returning('*');
 
-    // Create ride request
-    const expiresAt = new Date(Date.now() + REQUEST_TIMEOUT_SEC * 1000);
-    const [request] = await db('ride_requests').insert({
-      ride_id: rideId,
-      driver_id: driver.id,
-      status: 'pending',
-      expires_at: expiresAt,
-    }).returning('*');
+  // Assign driver to ride
+  await db('rides').where({ id: rideId }).update({
+    driver_id: driver.id,
+    status: 'driver_assigned',
+  });
+  await db('drivers').where({ id: driver.id }).update({ status: 'arriving' });
 
-    // Notify driver via WebSocket
-    notifyDriver(driver.id, 'new_ride_request', {
-      request_id: request.id,
-      pickup: { lat: pickupLat, lng: pickupLng, address: ride.pickup_address },
-      dropoff: { lat: parseFloat(ride.dropoff_lat), lng: parseFloat(ride.dropoff_lng), address: ride.dropoff_address },
-      fare: parseFloat(ride.estimated_fare),
-      passenger_name: await getPassengerName(ride.passenger_id),
-      distance_km: driver.distance.toFixed(1),
-      expires_in: REQUEST_TIMEOUT_SEC,
-    });
-
-    // Wait for response or timeout
-    const accepted = await waitForResponse(request.id, REQUEST_TIMEOUT_SEC);
-    if (accepted) return; // Driver accepted, ride is assigned
-
-    attempts++;
+  // Get driver's operator for the ride
+  const driverRecord = await db('drivers').where({ id: driver.id }).first();
+  if (driverRecord.operator_id) {
+    await db('rides').where({ id: rideId }).update({ operator_id: driverRecord.operator_id });
   }
 
-  // All attempts exhausted
-  await db('rides').where({ id: rideId }).update({ status: 'cancelled', cancellation_reason: 'No drivers available' });
-  notifyPassenger(ride.passenger_id, 'ride_status_update', { ride_id: rideId, status: 'cancelled', reason: 'No drivers available' });
-}
+  // Get vehicle info
+  const vehicle = await db('vehicles')
+    .join('drivers', 'drivers.vehicle_id', 'vehicles.id')
+    .where('drivers.id', driver.id)
+    .select('vehicles.*')
+    .first();
 
-async function waitForResponse(requestId, timeoutSec) {
-  const start = Date.now();
-  const timeoutMs = timeoutSec * 1000;
+  // Notify passenger that driver has been assigned
+  notifyPassenger(ride.passenger_id, 'ride_status_update', {
+    ride_id: rideId,
+    status: 'driver_assigned',
+    driver: {
+      name: driver.name,
+      phone: driver.phone,
+      rating: driver.rating_avg,
+      lat: driver.current_lat,
+      lng: driver.current_lng,
+    },
+    vehicle: vehicle ? {
+      registration: vehicle.registration_number,
+      make: vehicle.make,
+      model: vehicle.model,
+      color: vehicle.color,
+      type: vehicle.vehicle_type,
+    } : null,
+  });
 
-  while (Date.now() - start < timeoutMs) {
-    await sleep(2000); // Poll every 2 seconds
-    const request = await db('ride_requests').where({ id: requestId }).first();
-
-    if (request.status === 'accepted') return true;
-    if (request.status === 'declined') return false;
-  }
-
-  // Expired
-  await db('ride_requests').where({ id: requestId, status: 'pending' }).update({ status: 'expired' });
-  return false;
-}
-
-async function getPassengerName(passengerId) {
-  const p = await db('passengers').where({ id: passengerId }).first();
-  return p ? p.name || 'Passenger' : 'Passenger';
+  console.log(`[DriverMatch] Auto-assigned driver ${driver.name} to ride ${rideId}`);
 }
 
 function notifyPassenger(passengerId, event, data) {
   try {
     const { getIO } = require('../websocket/socketServer');
     getIO().to(`passenger:${passengerId}`).emit(event, data);
-  } catch { /* socket not initialized in tests */ }
-}
-
-function notifyDriver(driverId, event, data) {
-  try {
-    const { getIO } = require('../websocket/socketServer');
-    getIO().to(`driver:${driverId}`).emit(event, data);
   } catch { /* socket not initialized in tests */ }
 }
 

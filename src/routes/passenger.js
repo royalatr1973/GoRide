@@ -335,12 +335,17 @@ router.get('/ride/:id/status', async (req, res, next) => {
     res.json({
       ride_id: ride.id,
       status: ride.status,
+      pickup_lat: ride.pickup_lat,
+      pickup_lng: ride.pickup_lng,
       pickup_address: ride.pickup_address,
+      dropoff_lat: ride.dropoff_lat,
+      dropoff_lng: ride.dropoff_lng,
       dropoff_address: ride.dropoff_address,
       estimated_fare: ride.estimated_fare,
       actual_fare: ride.actual_fare,
       otp: ride.otp_code,
       payment_method: ride.payment_method,
+      vehicle_type_requested: ride.vehicle_type_requested,
       driver,
       vehicle,
     });
