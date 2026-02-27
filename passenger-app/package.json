@@ -13,10 +13,9 @@
     "socket.io-client": "^4.7.4"
   },
   "scripts": {
-    "start": "cross-env NODE_OPTIONS=--max-http-header-size=65536 react-scripts start",
+    "start": "react-scripts start",
     "build": "react-scripts build"
   },
-  "proxy": "http://localhost:3000",
   "browserslist": {
     "production": [
       ">0.2%",
