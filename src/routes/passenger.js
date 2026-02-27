@@ -335,8 +335,12 @@ router.post('/book-ride', async (req, res, next) => {
     }).returning('*');
 
     // Start driver matching asynchronously
-    findAndAssignDriver(ride.id).catch((err) => {
-      console.error('Driver matching error:', err.message);
+    findAndAssignDriver(ride.id).catch(async (err) => {
+      console.error('[BookRide] Driver matching error:', err.message);
+      // Cancel ride so it doesn't stay stuck on 'searching'
+      try {
+        await db('rides').where({ id: ride.id }).update({ status: 'cancelled', cancellation_reason: 'Driver matching failed' });
+      } catch (e) { /* ignore */ }
     });
 
     res.status(201).json({

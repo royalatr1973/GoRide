@@ -49,6 +49,20 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'Freedom Ride API', timestamp: new Date().toISOString() });
 });
 
+// Debug endpoint — check what's in the database (dev only)
+app.get('/api/debug/drivers', async (req, res) => {
+  try {
+    const db = require('./db/connection');
+    const drivers = await db('drivers').select('*');
+    const vehicles = await db('vehicles').select('*');
+    const operators = await db('operators').select('*');
+    const rides = await db('rides').select('id', 'status', 'vehicle_type_requested', 'driver_id', 'cancellation_reason').orderBy('created_at', 'desc').limit(10);
+    res.json({ drivers, vehicles, operators, recent_rides: rides });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Tile proxy — serves map tiles from the backend so they aren't blocked by CSP or firewalls
 app.get('/api/tiles/:z/:x/:y', (req, res) => {
   const { z, x, y } = req.params;

@@ -11,22 +11,60 @@ const AUTO_ACCEPT_DELAY_SEC = 5;
  * 3. Auto-assign best available driver after a short delay
  */
 async function findAndAssignDriver(rideId) {
-  const ride = await db('rides').where({ id: rideId }).first();
+  let ride;
+  try {
+    ride = await db('rides').where({ id: rideId }).first();
+  } catch (err) {
+    console.error('[DriverMatch] DB error fetching ride:', err.message);
+    return;
+  }
   if (!ride || ride.status !== 'searching') return;
 
   const pickupLat = parseFloat(ride.pickup_lat);
   const pickupLng = parseFloat(ride.pickup_lng);
 
+  console.log(`[DriverMatch] Searching for '${ride.vehicle_type_requested}' driver near (${pickupLat}, ${pickupLng})`);
+
   // Find eligible drivers (include 'arriving' so drivers can be reused in demo)
-  const candidates = await db('drivers')
-    .where({ is_verified: true })
-    .whereIn('status', ['online', 'arriving'])
-    .join('vehicles', 'drivers.vehicle_id', 'vehicles.id')
-    .where('vehicles.vehicle_type', ride.vehicle_type_requested)
-    .where('vehicles.is_active', true)
-    .join('operators', 'drivers.operator_id', 'operators.id')
-    .where('operators.is_active', true)
-    .select('drivers.*');
+  let candidates;
+  try {
+    candidates = await db('drivers')
+      .where('drivers.is_verified', true)
+      .whereIn('drivers.status', ['online', 'arriving'])
+      .join('vehicles', 'drivers.vehicle_id', 'vehicles.id')
+      .where('vehicles.vehicle_type', ride.vehicle_type_requested)
+      .where('vehicles.is_active', true)
+      .join('operators', 'drivers.operator_id', 'operators.id')
+      .where('operators.is_active', true)
+      .select('drivers.*');
+  } catch (err) {
+    console.error('[DriverMatch] DB query error:', err.message);
+    // Fallback: try simpler query without joins
+    try {
+      console.log('[DriverMatch] Trying fallback query...');
+      candidates = await db('drivers')
+        .where('drivers.is_verified', true)
+        .whereIn('drivers.status', ['online', 'arriving']);
+      // Filter by vehicle type manually
+      const driverIds = candidates.map(d => d.id);
+      if (driverIds.length > 0) {
+        const vehicles = await db('vehicles').whereIn('id', candidates.map(d => d.vehicle_id));
+        const vehicleMap = {};
+        vehicles.forEach(v => { vehicleMap[v.id] = v; });
+        candidates = candidates.filter(d => {
+          const v = vehicleMap[d.vehicle_id];
+          return v && v.vehicle_type === ride.vehicle_type_requested && v.is_active;
+        });
+      }
+    } catch (err2) {
+      console.error('[DriverMatch] Fallback query also failed:', err2.message);
+      await db('rides').where({ id: rideId }).update({ status: 'cancelled', cancellation_reason: 'Driver matching error' }).catch(() => {});
+      notifyPassenger(ride.passenger_id, 'ride_status_update', { ride_id: rideId, status: 'cancelled', reason: 'No drivers available' });
+      return;
+    }
+  }
+
+  console.log(`[DriverMatch] Found ${candidates.length} candidate driver(s)`);
 
   // Filter by distance and score
   const scored = candidates
@@ -50,6 +88,8 @@ async function findAndAssignDriver(rideId) {
     })
     .filter(Boolean)
     .sort((a, b) => b.score - a.score);
+
+  console.log(`[DriverMatch] ${scored.length} driver(s) within ${MAX_RADIUS_KM}km radius`);
 
   if (scored.length === 0) {
     await db('rides').where({ id: rideId }).update({ status: 'cancelled', cancellation_reason: 'No drivers available' });
