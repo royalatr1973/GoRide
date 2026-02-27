@@ -6,6 +6,7 @@ const { authenticate, authorizeRole } = require('../middleware/auth');
 const { calculateFare } = require('../utils/fare');
 const { generateOTP } = require('../utils/otp');
 const { findAndAssignDriver } = require('../services/driverMatching');
+const { searchLocations, geocodeLocal } = require('../data/chennaiLocations');
 
 const router = express.Router();
 router.use(authenticate, authorizeRole('passenger'));
@@ -43,22 +44,39 @@ router.post('/autocomplete', async (req, res, next) => {
       }
     }
 
-    // Fallback: free OpenStreetMap Nominatim search
-    const nomResponse = await axios.get('https://nominatim.openstreetmap.org/search', {
-      params: {
-        q: `${text}, Chennai, Tamil Nadu, India`,
-        format: 'json',
-        limit: 5,
-        addressdetails: 1,
-      },
-      headers: { 'User-Agent': 'FreedomRide-Dev/1.0' },
-    });
+    // Try Nominatim, fall back to local database if unreachable
+    try {
+      const nomResponse = await axios.get('https://nominatim.openstreetmap.org/search', {
+        params: {
+          q: `${text}, Chennai, Tamil Nadu, India`,
+          format: 'json',
+          limit: 5,
+          addressdetails: 1,
+        },
+        headers: { 'User-Agent': 'FreedomRide-Dev/1.0' },
+        timeout: 3000,
+      });
 
+      if (nomResponse.data && nomResponse.data.length > 0) {
+        return res.json({
+          suggestions: nomResponse.data.map((r) => ({
+            description: r.display_name,
+            lat: parseFloat(r.lat),
+            lng: parseFloat(r.lon),
+          })),
+        });
+      }
+    } catch {
+      // Nominatim unreachable, fall through to local
+    }
+
+    // Local Chennai location database fallback
+    const localResults = searchLocations(text);
     res.json({
-      suggestions: nomResponse.data.map((r) => ({
-        description: r.display_name,
-        lat: parseFloat(r.lat),
-        lng: parseFloat(r.lon),
+      suggestions: localResults.map((r) => ({
+        description: `${r.name}, ${r.area}, Chennai, Tamil Nadu, India`,
+        lat: r.lat,
+        lng: r.lng,
       })),
     });
   } catch (err) {
@@ -109,27 +127,42 @@ router.post('/geocode', async (req, res, next) => {
       }
     }
 
-    // Fallback: free OpenStreetMap Nominatim geocoding
-    const nomResponse = await axios.get('https://nominatim.openstreetmap.org/search', {
-      params: {
-        q: `${text}, Chennai, Tamil Nadu, India`,
-        format: 'json',
-        limit: 1,
-        addressdetails: 1,
-      },
-      headers: { 'User-Agent': 'FreedomRide-Dev/1.0' },
-    });
+    // Try Nominatim, fall back to local database if unreachable
+    try {
+      const nomResponse = await axios.get('https://nominatim.openstreetmap.org/search', {
+        params: {
+          q: `${text}, Chennai, Tamil Nadu, India`,
+          format: 'json',
+          limit: 1,
+          addressdetails: 1,
+        },
+        headers: { 'User-Agent': 'FreedomRide-Dev/1.0' },
+        timeout: 3000,
+      });
 
-    const nomResult = nomResponse.data[0];
-    if (!nomResult) {
-      return res.status(404).json({ error: 'Location not found' });
+      const nomResult = nomResponse.data[0];
+      if (nomResult) {
+        return res.json({
+          lat: parseFloat(nomResult.lat),
+          lng: parseFloat(nomResult.lon),
+          address: nomResult.display_name,
+        });
+      }
+    } catch {
+      // Nominatim unreachable, fall through to local
     }
 
-    res.json({
-      lat: parseFloat(nomResult.lat),
-      lng: parseFloat(nomResult.lon),
-      address: nomResult.display_name,
-    });
+    // Local Chennai location database fallback
+    const local = geocodeLocal(text);
+    if (local) {
+      return res.json({
+        lat: local.lat,
+        lng: local.lng,
+        address: `${local.name}, ${local.area}, Chennai, Tamil Nadu, India`,
+      });
+    }
+
+    return res.status(404).json({ error: 'Location not found' });
   } catch (err) {
     next(err);
   }
