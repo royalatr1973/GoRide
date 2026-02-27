@@ -17,9 +17,10 @@ async function findAndAssignDriver(rideId) {
   const pickupLat = parseFloat(ride.pickup_lat);
   const pickupLng = parseFloat(ride.pickup_lng);
 
-  // Find eligible drivers
+  // Find eligible drivers (include 'arriving' so drivers can be reused in demo)
   const candidates = await db('drivers')
-    .where({ status: 'online', is_verified: true })
+    .where({ is_verified: true })
+    .whereIn('status', ['online', 'arriving'])
     .join('vehicles', 'drivers.vehicle_id', 'vehicles.id')
     .where('vehicles.vehicle_type', ride.vehicle_type_requested)
     .where('vehicles.is_active', true)
@@ -78,7 +79,8 @@ async function findAndAssignDriver(rideId) {
     driver_id: driver.id,
     status: 'driver_assigned',
   });
-  await db('drivers').where({ id: driver.id }).update({ status: 'arriving' });
+  // Keep driver 'online' so they remain available for demo bookings
+  await db('drivers').where({ id: driver.id }).update({ status: 'online' });
 
   // Get driver's operator for the ride
   const driverRecord = await db('drivers').where({ id: driver.id }).first();
