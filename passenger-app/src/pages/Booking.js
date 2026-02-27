@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { passengerAPI } from '../api';
 import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 delete L.Icon.Default.prototype._getIconUrl;
 

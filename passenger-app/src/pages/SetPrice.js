@@ -105,7 +105,7 @@ function SetPrice() {
                 className={`price-chip ${isActive ? 'active' : ''} ${adj === 0 ? 'base' : ''}`}
                 onClick={() => setAdjustment(adj)}
               >
-                {adj === 0 ? `&#8377;${baseFare}` : (adj > 0 ? `+${adj}` : adj)}
+                {adj === 0 ? `\u20B9${baseFare}` : (adj > 0 ? `+${adj}` : adj)}
               </button>
             );
           })}
