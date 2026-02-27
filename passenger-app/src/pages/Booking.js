@@ -151,7 +151,7 @@ function Booking() {
       {error && <div className="error-msg" style={{ position: 'absolute', top: 60, left: 16, right: 16, zIndex: 10 }}>{error}</div>}
 
       {/* Map */}
-      <div ref={mapRef} style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}></div>
+      <div ref={mapRef} style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, zIndex: 1 }}></div>
 
       {/* Vehicle selection bottom sheet */}
       <div className="bottom-sheet vehicle-sheet">

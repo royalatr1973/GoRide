@@ -128,7 +128,7 @@ function RideTracker() {
   return (
     <div className="page map-page">
       {/* Map background */}
-      <div ref={mapRef} style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}></div>
+      <div ref={mapRef} style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, zIndex: 1 }}></div>
 
       {/* Searching overlay */}
       {isSearching && (
