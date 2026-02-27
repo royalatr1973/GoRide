@@ -62,9 +62,9 @@ function MapConfirmation() {
     );
     mapInstanceRef.current = map;
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('/api/tiles/{z}/{x}/{y}', {
       maxZoom: 19,
-      attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
+      attribution: '&copy; OpenStreetMap contributors',
     }).addTo(map);
 
     L.marker([pLat, pLng], { icon: greenIcon }).addTo(map);
