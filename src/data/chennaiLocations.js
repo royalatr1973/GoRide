@@ -95,7 +95,15 @@ function searchLocations(query) {
 }
 
 function geocodeLocal(query) {
-  const results = searchLocations(query);
+  // Try full query first, then strip suffixes like ", Chennai, Tamil Nadu, India"
+  let results = searchLocations(query);
+  if (results.length === 0) {
+    const parts = query.split(',').map((p) => p.trim());
+    // Try first part (e.g. "T. Nagar" from "T. Nagar, T. Nagar, Chennai, Tamil Nadu, India")
+    if (parts.length > 1) {
+      results = searchLocations(parts[0]);
+    }
+  }
   return results.length > 0 ? results[0] : null;
 }
 

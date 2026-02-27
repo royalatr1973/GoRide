@@ -235,19 +235,29 @@ router.post('/calculate-route', async (req, res, next) => {
 
     // Fallback: free OSRM routing
     if (!distanceKm) {
-      const osrmRes = await axios.get(
-        `https://router.project-osrm.org/route/v1/driving/${pickup.lng},${pickup.lat};${dropoff.lng},${dropoff.lat}`,
-        { params: { overview: 'full', geometries: 'polyline' } }
-      );
+      try {
+        const osrmRes = await axios.get(
+          `https://router.project-osrm.org/route/v1/driving/${pickup.lng},${pickup.lat};${dropoff.lng},${dropoff.lat}`,
+          { params: { overview: 'full', geometries: 'polyline' }, timeout: 3000 }
+        );
 
-      const osrmRoute = osrmRes.data.routes[0];
-      if (!osrmRoute) {
-        return res.status(404).json({ error: 'No route found' });
+        const osrmRoute = osrmRes.data.routes[0];
+        if (osrmRoute) {
+          distanceKm = osrmRoute.distance / 1000;
+          durationMinutes = Math.ceil(osrmRoute.duration / 60);
+          polylinePoints = osrmRoute.geometry;
+        }
+      } catch {
+        // OSRM unreachable, fall through to local calculation
       }
+    }
 
-      distanceKm = osrmRoute.distance / 1000;
-      durationMinutes = Math.ceil(osrmRoute.duration / 60);
-      polylinePoints = osrmRoute.geometry;
+    // Local fallback: estimate using haversine with road factor
+    if (!distanceKm) {
+      const { haversineDistance } = require('../utils/geo');
+      const straightLine = haversineDistance(pickup.lat, pickup.lng, dropoff.lat, dropoff.lng);
+      distanceKm = Math.round(straightLine * 1.4 * 100) / 100; // 1.4x road winding factor
+      durationMinutes = Math.max(5, Math.ceil(distanceKm * 3)); // ~20 km/h avg city speed
     }
 
     // Get fare configs from all active operators
