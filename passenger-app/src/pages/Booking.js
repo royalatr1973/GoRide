@@ -4,18 +4,16 @@ import { passengerAPI } from '../api';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-delete L.Icon.Default.prototype._getIconUrl;
-
-const greenIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41],
+const greenIcon = L.divIcon({
+  className: '',
+  html: '<svg width="25" height="41" viewBox="0 0 25 41" xmlns="http://www.w3.org/2000/svg"><path d="M12.5 0C5.6 0 0 5.6 0 12.5 0 21.9 12.5 41 12.5 41S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0z" fill="#22c55e"/><circle cx="12.5" cy="12.5" r="6" fill="#fff"/></svg>',
+  iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34],
 });
 
-const redIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41],
+const redIcon = L.divIcon({
+  className: '',
+  html: '<svg width="25" height="41" viewBox="0 0 25 41" xmlns="http://www.w3.org/2000/svg"><path d="M12.5 0C5.6 0 0 5.6 0 12.5 0 21.9 12.5 41 12.5 41S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0z" fill="#ef4444"/><circle cx="12.5" cy="12.5" r="6" fill="#fff"/></svg>',
+  iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34],
 });
 
 const VEHICLE_INFO = {
@@ -72,25 +70,35 @@ function Booking() {
       .setView([(pLat + dLat) / 2, (pLng + dLng) / 2], 13);
     mapInstanceRef.current = map;
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
+    }).addTo(map);
+
     L.marker([pLat, pLng], { icon: greenIcon }).addTo(map);
     L.marker([dLat, dLng], { icon: redIcon }).addTo(map);
 
-    const routeLine = L.polyline([[pLat, pLng], [dLat, dLng]], { color: '#6C63FF', weight: 4, dashArray: '10, 8' }).addTo(map);
+    const routeLine = L.polyline([[pLat, pLng], [dLat, dLng]], { color: '#6C63FF', weight: 3, opacity: 0.3, dashArray: '8, 8' }).addTo(map);
     const bounds = L.latLngBounds([[pLat, pLng], [dLat, dLng]]);
     map.fitBounds(bounds.pad(0.3));
     setTimeout(() => { map.invalidateSize(); map.fitBounds(bounds.pad(0.3)); }, 200);
 
     fetch(`https://router.project-osrm.org/route/v1/driving/${pLng},${pLat};${dLng},${dLat}?overview=full&geometries=geojson`)
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error('OSRM request failed');
+        return r.json();
+      })
       .then(data => {
         if (data.routes?.[0]) {
           map.removeLayer(routeLine);
           const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-          L.polyline(coords, { color: '#6C63FF', weight: 5 }).addTo(map);
+          L.polyline(coords, { color: '#6C63FF', weight: 5, opacity: 0.9 }).addTo(map);
           map.fitBounds(L.latLngBounds(coords).pad(0.15));
         }
-      }).catch(() => {});
+      })
+      .catch(err => {
+        console.warn('Route fetch failed, showing straight line:', err.message);
+      });
   }, [pickupCoords, dropoffCoords]);
 
   useEffect(() => {

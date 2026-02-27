@@ -4,23 +4,16 @@ import { passengerAPI } from '../api';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+const greenIcon = L.divIcon({
+  className: '',
+  html: '<svg width="25" height="41" viewBox="0 0 25 41" xmlns="http://www.w3.org/2000/svg"><path d="M12.5 0C5.6 0 0 5.6 0 12.5 0 21.9 12.5 41 12.5 41S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0z" fill="#22c55e"/><circle cx="12.5" cy="12.5" r="6" fill="#fff"/></svg>',
+  iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34],
 });
 
-const greenIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41],
-});
-
-const redIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41],
+const redIcon = L.divIcon({
+  className: '',
+  html: '<svg width="25" height="41" viewBox="0 0 25 41" xmlns="http://www.w3.org/2000/svg"><path d="M12.5 0C5.6 0 0 5.6 0 12.5 0 21.9 12.5 41 12.5 41S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0z" fill="#ef4444"/><circle cx="12.5" cy="12.5" r="6" fill="#fff"/></svg>',
+  iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34],
 });
 
 function MapConfirmation() {
@@ -69,16 +62,18 @@ function MapConfirmation() {
     );
     mapInstanceRef.current = map;
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19, attribution: '&copy; OpenStreetMap',
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
     }).addTo(map);
 
     L.marker([pLat, pLng], { icon: greenIcon }).addTo(map);
     L.marker([dLat, dLng], { icon: redIcon }).addTo(map);
 
+    // Show a faint dashed line as placeholder while route loads
     const routeLine = L.polyline(
       [[pLat, pLng], [dLat, dLng]],
-      { color: '#6C63FF', weight: 4, opacity: 0.6, dashArray: '10, 8' }
+      { color: '#6C63FF', weight: 3, opacity: 0.3, dashArray: '8, 8' }
     ).addTo(map);
 
     const bounds = L.latLngBounds([[pLat, pLng], [dLat, dLng]]);
@@ -86,8 +81,12 @@ function MapConfirmation() {
 
     setTimeout(() => { map.invalidateSize(); map.fitBounds(bounds.pad(0.3)); }, 200);
 
+    // Fetch actual driving route from OSRM
     fetch(`https://router.project-osrm.org/route/v1/driving/${pLng},${pLat};${dLng},${dLat}?overview=full&geometries=geojson`)
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error('OSRM request failed');
+        return r.json();
+      })
       .then(data => {
         if (data.routes?.[0]) {
           map.removeLayer(routeLine);
@@ -95,7 +94,10 @@ function MapConfirmation() {
           L.polyline(coords, { color: '#6C63FF', weight: 5, opacity: 0.9 }).addTo(map);
           map.fitBounds(L.latLngBounds(coords).pad(0.15));
         }
-      }).catch(() => {});
+      })
+      .catch(err => {
+        console.warn('Route fetch failed, showing straight line:', err.message);
+      });
   }, [pickupCoords, dropoffCoords]);
 
   useEffect(() => {
