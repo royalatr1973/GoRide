@@ -135,6 +135,23 @@ async function findAndAssignDriver(rideId) {
     .select('vehicles.*')
     .first();
 
+  // Notify driver of the assigned ride
+  notifyDriver(driver.id, 'ride_request', {
+    ride_id: rideId,
+    ride_request_id: request.id,
+    status: 'driver_assigned',
+    pickup_address: ride.pickup_address,
+    dropoff_address: ride.dropoff_address,
+    pickup_lat: ride.pickup_lat,
+    pickup_lng: ride.pickup_lng,
+    dropoff_lat: ride.dropoff_lat,
+    dropoff_lng: ride.dropoff_lng,
+    estimated_fare: ride.estimated_fare,
+    vehicle_type: ride.vehicle_type_requested,
+    distance_km: ride.estimated_distance_km,
+    duration_minutes: ride.estimated_duration_minutes,
+  });
+
   // Notify passenger that driver has been assigned
   notifyPassenger(ride.passenger_id, 'ride_status_update', {
     ride_id: rideId,
@@ -162,6 +179,13 @@ function notifyPassenger(passengerId, event, data) {
   try {
     const { getIO } = require('../websocket/socketServer');
     getIO().to(`passenger:${passengerId}`).emit(event, data);
+  } catch { /* socket not initialized in tests */ }
+}
+
+function notifyDriver(driverId, event, data) {
+  try {
+    const { getIO } = require('../websocket/socketServer');
+    getIO().to(`driver:${driverId}`).emit(event, data);
   } catch { /* socket not initialized in tests */ }
 }
 

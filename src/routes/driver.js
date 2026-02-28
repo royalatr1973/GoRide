@@ -349,4 +349,44 @@ router.get('/earnings', async (req, res, next) => {
   }
 });
 
+// GET /api/driver/active-ride — get current active ride for this driver
+router.get('/active-ride', async (req, res, next) => {
+  try {
+    const ride = await db('rides')
+      .where({ driver_id: req.user.id })
+      .whereIn('status', ['driver_assigned', 'driver_arriving', 'driver_arrived', 'in_progress'])
+      .orderBy('created_at', 'desc')
+      .first();
+
+    if (!ride) {
+      return res.json({ active: false });
+    }
+
+    // Get passenger info
+    const passenger = await db('passengers')
+      .where({ id: ride.passenger_id })
+      .select('id', 'name', 'phone', 'rating_avg')
+      .first();
+
+    res.json({
+      active: true,
+      ride_id: ride.id,
+      status: ride.status,
+      pickup_lat: ride.pickup_lat,
+      pickup_lng: ride.pickup_lng,
+      pickup_address: ride.pickup_address,
+      dropoff_lat: ride.dropoff_lat,
+      dropoff_lng: ride.dropoff_lng,
+      dropoff_address: ride.dropoff_address,
+      estimated_fare: ride.estimated_fare,
+      vehicle_type: ride.vehicle_type_requested,
+      estimated_distance_km: ride.estimated_distance_km,
+      estimated_duration_minutes: ride.estimated_duration_minutes,
+      passenger: passenger || null,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
