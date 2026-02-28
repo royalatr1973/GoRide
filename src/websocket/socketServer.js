@@ -31,15 +31,30 @@ function initSocketServer(httpServer) {
     // Join role-specific room
     socket.join(`${role}:${id}`);
 
-    // Driver location updates
+    // Driver location updates → broadcast to passenger + operator
     if (role === 'driver') {
-      socket.on('driver:location_update', (data) => {
-        // Broadcast to relevant passengers handled via REST API
-        // This event can be used for real-time operator map
+      socket.on('driver:location_update', async (data) => {
+        // Broadcast to operator dashboard
         io.to(`operator:${socket.user.operator_id}`).emit('driver_location_update', {
           driver_id: id,
           ...data,
         });
+
+        // Broadcast to passenger of active ride
+        try {
+          const db = require('../db/connection');
+          const activeRide = await db('rides')
+            .where({ driver_id: id })
+            .whereIn('status', ['driver_assigned', 'driver_arriving', 'driver_arrived', 'in_progress'])
+            .first();
+          if (activeRide) {
+            io.to(`passenger:${activeRide.passenger_id}`).emit('driver_location', {
+              ride_id: activeRide.id,
+              lat: data.lat,
+              lng: data.lng,
+            });
+          }
+        } catch { /* ignore */ }
       });
     }
 

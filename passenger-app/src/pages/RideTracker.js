@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { passengerAPI } from '../api';
+import { io } from 'socket.io-client';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -16,22 +18,36 @@ const redIcon = L.divIcon({
   iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34],
 });
 
+const driverIcon = L.divIcon({
+  className: '',
+  html: '<div style="width:36px;height:36px;border-radius:50%;background:#6C63FF;display:flex;align-items:center;justify-content:center;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3)"><svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="none"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg></div>',
+  iconSize: [36, 36], iconAnchor: [18, 18],
+});
+
 function RideTracker() {
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const { token } = useAuth();
   const [ride, setRide] = useState(null);
   const [error, setError] = useState('');
   const [rating, setRating] = useState(0);
   const [cancelling, setCancelling] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [driverLocation, setDriverLocation] = useState(null);
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
+  const driverMarkerRef = useRef(null);
 
+  // REST polling as fallback (slower interval since WebSocket is primary)
   const fetchStatus = useCallback(async () => {
     try {
       const { data } = await passengerAPI.getRideStatus(id);
       setRide(data);
+      // Update driver location from poll data if available
+      if (data.driver?.current_lat && data.driver?.current_lng) {
+        setDriverLocation({ lat: parseFloat(data.driver.current_lat), lng: parseFloat(data.driver.current_lng) });
+      }
     } catch (err) {
       setError('Failed to get ride status');
     }
@@ -39,9 +55,49 @@ function RideTracker() {
 
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(fetchStatus, 5000);
+    const interval = setInterval(fetchStatus, 10000); // 10s fallback (WebSocket handles real-time)
     return () => clearInterval(interval);
   }, [fetchStatus]);
+
+  // WebSocket connection for real-time updates
+  useEffect(() => {
+    if (!token) return;
+
+    const socket = io(window.location.origin, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+    });
+
+    // Driver assigned / status changes
+    socket.on('ride_status_update', (data) => {
+      if (data.ride_id === id) {
+        fetchStatus(); // Refresh full ride data
+      }
+    });
+
+    // Driver arrived at pickup
+    socket.on('driver_arrived', (data) => {
+      if (data.ride_id === id) {
+        setRide((prev) => prev ? { ...prev, status: 'driver_arrived' } : prev);
+      }
+    });
+
+    // Live driver location
+    socket.on('driver_location', (data) => {
+      if (data.ride_id === id) {
+        setDriverLocation({ lat: data.lat, lng: data.lng });
+      }
+    });
+
+    // Ride completed
+    socket.on('ride_completed', (data) => {
+      if (data.ride_id === id) {
+        fetchStatus();
+      }
+    });
+
+    return () => socket.disconnect();
+  }, [token, id, fetchStatus]);
 
   // Map for pickup location
   useEffect(() => {
@@ -90,6 +146,21 @@ function RideTracker() {
     setTimeout(() => map.invalidateSize(), 200);
     return () => { if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; } };
   }, [ride?.status]);
+
+  // Update driver marker on map in real-time
+  useEffect(() => {
+    if (!driverLocation || !mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
+
+    if (driverMarkerRef.current) {
+      driverMarkerRef.current.setLatLng([driverLocation.lat, driverLocation.lng]);
+    } else {
+      driverMarkerRef.current = L.marker(
+        [driverLocation.lat, driverLocation.lng],
+        { icon: driverIcon, zIndexOffset: 1000 },
+      ).addTo(map).bindPopup('Driver');
+    }
+  }, [driverLocation]);
 
   const handleCancel = async () => {
     setCancelling(true);
