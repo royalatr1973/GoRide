@@ -79,7 +79,11 @@ router.post('/verify-otp', async (req, res, next) => {
 
       let user = await db(table).where({ phone }).first();
       if (!user) {
-        const [newUser] = await db(table).insert({ phone }).returning('*');
+        const insertData = { phone };
+        if (role === 'operator') insertData.name = 'Operator';
+        if (role === 'driver') insertData.name = 'Driver';
+        if (role === 'passenger') insertData.name = 'Passenger';
+        const [newUser] = await db(table).insert(insertData).returning('*');
         user = newUser;
       }
       userId = user.id;
