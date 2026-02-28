@@ -22,8 +22,9 @@ function ActiveRide() {
   const navigate = useNavigate();
   const { token } = useAuth();
   const [ride, setRide] = useState(null);
-  const [status, setStatus] = useState('driver_assigned'); // driver_assigned, driver_arrived, in_progress, completed
+  const [status, setStatus] = useState('driver_assigned');
   const [otp, setOtp] = useState('');
+  const [demoOtp, setDemoOtp] = useState(null);
   const [otpError, setOtpError] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -32,14 +33,16 @@ function ActiveRide() {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
 
-  // Fetch ride details by polling
+  // Fetch ride details from backend
   const fetchRide = useCallback(async () => {
     try {
-      // Use the passenger-visible endpoint via a general approach
-      // Actually, we need a driver-side ride status. For now, we'll rely on state passed from accept.
-      // The ride info comes from the accept response and socket events.
+      const { data } = await driverAPI.getActiveRide();
+      if (data.active && data.ride_id === id) {
+        setRide(data);
+        setStatus(data.status);
+      }
     } catch { /* ignore */ }
-  }, []);
+  }, [id]);
 
   // Listen for ride events
   useEffect(() => {
@@ -114,15 +117,20 @@ function ActiveRide() {
     setTimeout(() => map.invalidateSize(), 200);
   }, [ride, status]);
 
-  // Load ride info from state or fetch
+  // Load ride info from navigation state, then fetch from backend
   useEffect(() => {
-    // Try to get ride data from the navigation state
     const stateRide = window.history.state?.usr?.ride;
+    const stateDemoOtp = window.history.state?.usr?.demoOtp;
     if (stateRide) {
       setRide(stateRide);
       setStatus(stateRide.status || 'driver_assigned');
     }
-  }, []);
+    if (stateDemoOtp) {
+      setDemoOtp(stateDemoOtp);
+    }
+    // Also fetch from backend to get latest data
+    fetchRide();
+  }, [fetchRide]);
 
   const handleArrive = async () => {
     setLoading(true);
@@ -252,6 +260,9 @@ function ActiveRide() {
 
             <div className="otp-verify-section">
               <label className="input-label">Enter Passenger OTP</label>
+              {demoOtp && (
+                <div className="demo-otp-hint">Demo OTP: <strong>{demoOtp}</strong></div>
+              )}
               <div className="otp-input-row">
                 {[0, 1, 2, 3].map((i) => (
                   <input

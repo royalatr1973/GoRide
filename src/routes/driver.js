@@ -349,6 +349,84 @@ router.get('/earnings', async (req, res, next) => {
   }
 });
 
+// POST /api/driver/demo-ride — create a demo ride nearby for testing
+router.post('/demo-ride', async (req, res, next) => {
+  try {
+    const { lat, lng } = await Joi.object({
+      lat: Joi.number().min(-90).max(90).required(),
+      lng: Joi.number().min(-180).max(180).required(),
+    }).validateAsync(req.body);
+
+    const driver = await db('drivers').where({ id: req.user.id }).first();
+    if (!driver) return res.status(400).json({ error: 'Driver not found' });
+
+    // Get or create a demo passenger
+    let passenger = await db('passengers').where({ phone: '+919999999999' }).first();
+    if (!passenger) {
+      [passenger] = await db('passengers').insert({
+        name: 'Demo Passenger',
+        phone: '+919999999999',
+      }).returning('*');
+    }
+
+    // Pickup = ~10m from driver (roughly 0.0001 degrees)
+    const pickupLat = lat + 0.0001;
+    const pickupLng = lng + 0.0001;
+    // Dropoff = ~20m from pickup
+    const dropoffLat = pickupLat + 0.0002;
+    const dropoffLng = pickupLng + 0.0002;
+
+    const otpCode = '1234';
+
+    // Create the ride
+    const [ride] = await db('rides').insert({
+      passenger_id: passenger.id,
+      driver_id: driver.id,
+      operator_id: driver.operator_id,
+      status: 'driver_assigned',
+      pickup_lat: pickupLat,
+      pickup_lng: pickupLng,
+      pickup_address: 'Demo Pickup (10m away)',
+      dropoff_lat: dropoffLat,
+      dropoff_lng: dropoffLng,
+      dropoff_address: 'Demo Dropoff (20m away)',
+      vehicle_type_requested: 'auto',
+      estimated_distance_km: 0.03,
+      estimated_duration_minutes: 1,
+      estimated_fare: 50,
+      otp_code: otpCode,
+      payment_method: 'cash',
+    }).returning('*');
+
+    // Set driver status to arriving
+    await db('drivers').where({ id: req.user.id }).update({ status: 'arriving' });
+
+    res.json({
+      message: 'Demo ride created',
+      ride_id: ride.id,
+      otp: otpCode,
+      ride: {
+        ride_id: ride.id,
+        status: 'driver_assigned',
+        pickup_lat: pickupLat,
+        pickup_lng: pickupLng,
+        pickup_address: 'Demo Pickup (10m away)',
+        dropoff_lat: dropoffLat,
+        dropoff_lng: dropoffLng,
+        dropoff_address: 'Demo Dropoff (20m away)',
+        estimated_fare: 50,
+        vehicle_type: 'auto',
+        distance_km: 0.03,
+        duration_minutes: 1,
+        passenger_name: passenger.name,
+        passenger_phone: passenger.phone,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/driver/active-ride — get current active ride for this driver
 router.get('/active-ride', async (req, res, next) => {
   try {

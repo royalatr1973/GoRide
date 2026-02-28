@@ -40,6 +40,7 @@ export const driverAPI = {
   ratePassenger: (ride_id, rating) => api.post('/driver/rate-passenger', { ride_id, rating }),
   getEarnings: (period) => api.get(`/driver/earnings?period=${period}`),
   getActiveRide: () => api.get('/driver/active-ride'),
+  demoRide: (lat, lng) => api.post('/driver/demo-ride', { lat, lng }),
 };
 
 export default api;
