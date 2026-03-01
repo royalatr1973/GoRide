@@ -100,52 +100,84 @@ function RideTracker() {
     return () => socket.disconnect();
   }, [token, id, fetchStatus]);
 
-  // Map for pickup location
+  // Map for pickup location — create once, update markers on status change
   useEffect(() => {
     if (!ride || !mapRef.current) return;
-    if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; }
+
+    // Only create the map once
+    if (!mapInstanceRef.current) {
+      const lat = ride.pickup_lat || 13.0827;
+      const lng = ride.pickup_lng || 80.2707;
+
+      const map = L.map(mapRef.current, { zoomControl: false, attributionControl: false }).setView([lat, lng], 15);
+      mapInstanceRef.current = map;
+
+      L.tileLayer('/api/tiles/{z}/{x}/{y}', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors',
+      }).addTo(map);
+
+      setTimeout(() => map.invalidateSize(), 200);
+    }
+
+    const map = mapInstanceRef.current;
+
+    // Clear non-tile layers (markers, polylines) before re-adding
+    map.eachLayer((layer) => {
+      if (!(layer instanceof L.TileLayer)) map.removeLayer(layer);
+    });
+    driverMarkerRef.current = null; // reset driver marker ref since we cleared layers
 
     const lat = ride.pickup_lat || 13.0827;
     const lng = ride.pickup_lng || 80.2707;
 
-    const map = L.map(mapRef.current, { zoomControl: false, attributionControl: false }).setView([lat, lng], 15);
-    mapInstanceRef.current = map;
-
-    L.tileLayer('/api/tiles/{z}/{x}/{y}', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors',
-    }).addTo(map);
-
     L.marker([lat, lng], { icon: greenIcon }).addTo(map);
 
     if (ride.dropoff_lat && ride.dropoff_lng) {
-      L.marker([ride.dropoff_lat, ride.dropoff_lng], { icon: redIcon }).addTo(map);
-
-      // Fetch actual driving route
       const dLat = ride.dropoff_lat, dLng = ride.dropoff_lng;
+      L.marker([dLat, dLng], { icon: redIcon }).addTo(map);
+
+      // Dashed fallback line
       const routeLine = L.polyline([[lat, lng], [dLat, dLng]], { color: '#6C63FF', weight: 3, opacity: 0.3, dashArray: '8, 8' }).addTo(map);
 
+      // Fetch actual driving route
       fetch(`https://router.project-osrm.org/route/v1/driving/${lng},${lat};${dLng},${dLat}?overview=full&geometries=geojson`)
         .then(r => {
           if (!r.ok) throw new Error('OSRM request failed');
           return r.json();
         })
         .then(data => {
+          // Guard: map may have been removed by the time this resolves
+          if (!mapInstanceRef.current) return;
           if (data.routes?.[0]) {
-            map.removeLayer(routeLine);
+            mapInstanceRef.current.removeLayer(routeLine);
             const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-            L.polyline(coords, { color: '#6C63FF', weight: 5, opacity: 0.9 }).addTo(map);
-            map.fitBounds(L.latLngBounds(coords).pad(0.15));
+            L.polyline(coords, { color: '#6C63FF', weight: 5, opacity: 0.9 }).addTo(mapInstanceRef.current);
+            try { mapInstanceRef.current.fitBounds(L.latLngBounds(coords).pad(0.15)); } catch { /* ignore */ }
           }
         })
         .catch(err => console.warn('Route fetch failed:', err.message));
 
-      const bounds = L.latLngBounds([[lat, lng], [dLat, dLng]]);
-      map.fitBounds(bounds.pad(0.3));
+      try { map.fitBounds(L.latLngBounds([[lat, lng], [dLat, dLng]]).pad(0.3)); } catch { /* ignore */ }
     }
 
-    setTimeout(() => map.invalidateSize(), 200);
-    return () => { if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; } };
+    setTimeout(() => { if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize(); }, 200);
+
+    // Re-add driver marker if we have a location
+    if (driverLocation) {
+      driverMarkerRef.current = L.marker(
+        [driverLocation.lat, driverLocation.lng],
+        { icon: driverIcon, zIndexOffset: 1000 },
+      ).addTo(map).bindPopup('Driver');
+    }
+
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+        driverMarkerRef.current = null;
+      }
+    };
   }, [ride?.status]);
 
   // Update driver marker on map in real-time
