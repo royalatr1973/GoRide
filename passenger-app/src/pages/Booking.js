@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { passengerAPI } from '../api';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import '../leaflet-fix';
 
 const greenIcon = L.divIcon({
   className: '',

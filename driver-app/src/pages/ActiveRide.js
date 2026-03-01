@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { io } from 'socket.io-client';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import '../leaflet-fix';
 
 const greenIcon = L.divIcon({
   className: '',
