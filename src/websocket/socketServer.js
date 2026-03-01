@@ -24,21 +24,31 @@ function initSocketServer(httpServer) {
     }
   });
 
-  io.on('connection', (socket) => {
+  io.on('connection', async (socket) => {
     const { id, role } = socket.user;
     console.log(`Socket connected: ${role}:${id}`);
 
     // Join role-specific room
     socket.join(`${role}:${id}`);
 
-    // Driver location updates → broadcast to passenger + operator
+    // For drivers, look up operator_id from DB and join operator room
     if (role === 'driver') {
+      try {
+        const db = require('../db/connection');
+        const driver = await db('drivers').where({ id }).select('operator_id').first();
+        if (driver?.operator_id) {
+          socket.user.operator_id = driver.operator_id;
+        }
+      } catch { /* ignore */ }
+
       socket.on('driver:location_update', async (data) => {
-        // Broadcast to operator dashboard
-        io.to(`operator:${socket.user.operator_id}`).emit('driver_location_update', {
-          driver_id: id,
-          ...data,
-        });
+        // Broadcast to operator dashboard (use looked-up operator_id)
+        if (socket.user.operator_id) {
+          io.to(`operator:${socket.user.operator_id}`).emit('driver_location_update', {
+            driver_id: id,
+            ...data,
+          });
+        }
 
         // Broadcast to passenger of active ride
         try {
@@ -73,4 +83,10 @@ function getIO() {
   return io;
 }
 
-module.exports = { initSocketServer, getIO };
+// Helper to notify an operator's dashboard about ride/driver changes
+function notifyOperator(operatorId, event, data) {
+  if (!io || !operatorId) return;
+  io.to(`operator:${operatorId}`).emit(event, data);
+}
+
+module.exports = { initSocketServer, getIO, notifyOperator };

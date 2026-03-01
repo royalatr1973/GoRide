@@ -1,14 +1,40 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import api from '../api';
+import { io } from 'socket.io-client';
+
+const POLL_INTERVAL = 10000;
 
 export default function Rides() {
   const [rides, setRides] = useState([]);
   const [filter, setFilter] = useState('');
 
-  useEffect(() => {
+  const fetchRides = useCallback(() => {
     const params = filter ? { status: filter } : {};
     api.get('/operator/rides', { params }).then((res) => setRides(res.data.rides)).catch(console.error);
   }, [filter]);
+
+  // Initial fetch + polling
+  useEffect(() => {
+    fetchRides();
+    const interval = setInterval(fetchRides, POLL_INTERVAL);
+    return () => clearInterval(interval);
+  }, [fetchRides]);
+
+  // WebSocket for real-time ride updates
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const socketUrl = process.env.REACT_APP_SOCKET_URL || window.location.origin;
+    const socket = io(socketUrl, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+    });
+
+    socket.on('ride_status_changed', () => fetchRides());
+
+    return () => socket.disconnect();
+  }, [fetchRides]);
 
   return (
     <div>

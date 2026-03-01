@@ -1,14 +1,47 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import api from '../api';
+import { io } from 'socket.io-client';
+
+const POLL_INTERVAL = 10000; // 10s polling fallback
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [liveDrivers, setLiveDrivers] = useState([]);
 
-  useEffect(() => {
+  const fetchData = useCallback(() => {
     api.get('/operator/dashboard').then((res) => setStats(res.data)).catch(console.error);
     api.get('/operator/live-map').then((res) => setLiveDrivers(res.data.drivers)).catch(console.error);
   }, []);
+
+  // Initial fetch + polling
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, POLL_INTERVAL);
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
+  // WebSocket for real-time updates
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const socketUrl = process.env.REACT_APP_SOCKET_URL || window.location.origin;
+    const socket = io(socketUrl, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+    });
+
+    socket.on('connect', () => {
+      console.log('Operator socket connected');
+    });
+
+    // Refresh data on any ride or driver change
+    socket.on('driver_status_changed', () => fetchData());
+    socket.on('ride_status_changed', () => fetchData());
+    socket.on('driver_location_update', () => fetchData());
+
+    return () => socket.disconnect();
+  }, [fetchData]);
 
   if (!stats) return <div>Loading...</div>;
 

@@ -47,7 +47,8 @@ function ActiveRide() {
   // Listen for ride events
   useEffect(() => {
     if (!token) return;
-    const socket = io(window.location.origin, {
+    const socketUrl = process.env.REACT_APP_SOCKET_URL || window.location.origin;
+    const socket = io(socketUrl, {
       auth: { token },
       transports: ['websocket', 'polling'],
     });

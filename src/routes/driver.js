@@ -15,10 +15,17 @@ router.post('/go-online', async (req, res, next) => {
       lng: Joi.number().min(-180).max(180).required(),
     }).validateAsync(req.body);
 
+    const driver = await db('drivers').where({ id: req.user.id }).first();
     await db('drivers').where({ id: req.user.id }).update({
       status: 'online',
       current_lat: lat,
       current_lng: lng,
+    });
+
+    // Notify operator dashboard
+    const { notifyOperator } = require('../websocket/socketServer');
+    notifyOperator(driver.operator_id, 'driver_status_changed', {
+      driver_id: req.user.id, name: driver.name, status: 'online', lat, lng,
     });
 
     res.json({ message: 'You are now online', status: 'online' });
@@ -36,6 +43,13 @@ router.post('/go-offline', async (req, res, next) => {
     }
 
     await db('drivers').where({ id: req.user.id }).update({ status: 'offline' });
+
+    // Notify operator dashboard
+    const { notifyOperator } = require('../websocket/socketServer');
+    notifyOperator(driver.operator_id, 'driver_status_changed', {
+      driver_id: req.user.id, name: driver.name, status: 'offline',
+    });
+
     res.json({ message: 'You are now offline', status: 'offline' });
   } catch (err) {
     next(err);
@@ -178,6 +192,10 @@ router.post('/arrive-at-pickup', async (req, res, next) => {
     const io = require('../websocket/socketServer').getIO();
     io.to(`passenger:${ride.passenger_id}`).emit('driver_arrived', { ride_id });
 
+    // Notify operator
+    const { notifyOperator } = require('../websocket/socketServer');
+    notifyOperator(ride.operator_id, 'ride_status_changed', { ride_id, status: 'driver_arrived' });
+
     res.json({ message: 'Marked as arrived', otp_required: true });
   } catch (err) {
     next(err);
@@ -215,6 +233,10 @@ router.post('/start-ride', async (req, res, next) => {
       ride_id,
       status: 'in_progress',
     });
+
+    // Notify operator
+    const { notifyOperator } = require('../websocket/socketServer');
+    notifyOperator(ride.operator_id, 'ride_status_changed', { ride_id, status: 'in_progress' });
 
     res.json({ message: 'Ride started' });
   } catch (err) {
@@ -271,6 +293,12 @@ router.post('/end-ride', async (req, res, next) => {
     io.to(`passenger:${ride.passenger_id}`).emit('ride_completed', {
       ride_id,
       fare: actualFare,
+    });
+
+    // Notify operator
+    const { notifyOperator } = require('../websocket/socketServer');
+    notifyOperator(ride.operator_id, 'ride_status_changed', {
+      ride_id, status: 'completed', fare: actualFare,
     });
 
     res.json({

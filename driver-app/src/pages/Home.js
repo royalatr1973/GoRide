@@ -116,14 +116,20 @@ function Home() {
   useEffect(() => {
     if (!token) return;
 
-    const socket = io(window.location.origin, {
+    const socketUrl = process.env.REACT_APP_SOCKET_URL || window.location.origin;
+    const socket = io(socketUrl, {
       auth: { token },
       transports: ['websocket', 'polling'],
     });
     socketRef.current = socket;
 
     socket.on('ride_request', (data) => {
-      setRideRequest(data);
+      // If ride is already auto-assigned, navigate directly to ride screen
+      if (data.status === 'driver_assigned' && data.ride_id) {
+        navigate(`/ride/${data.ride_id}`, { state: { ride: data } });
+      } else {
+        setRideRequest(data);
+      }
     });
 
     socket.on('ride_cancelled', () => {

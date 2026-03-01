@@ -172,6 +172,16 @@ async function findAndAssignDriver(rideId) {
     } : null,
   });
 
+  // Notify operator dashboard about new ride assignment
+  if (driverRecord.operator_id) {
+    try {
+      const { notifyOperator } = require('../websocket/socketServer');
+      notifyOperator(driverRecord.operator_id, 'ride_status_changed', {
+        ride_id: rideId, status: 'driver_assigned', driver_name: driver.name,
+      });
+    } catch { /* ignore */ }
+  }
+
   console.log(`[DriverMatch] Auto-assigned driver ${driver.name} to ride ${rideId}`);
 }
 
