@@ -55,10 +55,13 @@ function ActiveRide() {
   // Listen for ride events
   useEffect(() => {
     if (!token) return;
-    const socketUrl = process.env.REACT_APP_SOCKET_URL || 'http://localhost:3000';
+    const socketUrl = process.env.REACT_APP_SOCKET_URL || window.location.origin;
     const socket = io(socketUrl, {
       auth: { token },
       transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 2000,
     });
 
     socket.on('ride_cancelled', (data) => {

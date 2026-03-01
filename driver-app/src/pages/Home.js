@@ -46,7 +46,7 @@ function Home() {
 
   useEffect(() => { fetchEarnings(); }, [fetchEarnings]);
 
-  // Check for active ride on load
+  // Check for active ride on load + poll every 5s when online (fallback for WebSocket)
   useEffect(() => {
     async function checkActiveRide() {
       try {
@@ -57,7 +57,12 @@ function Home() {
       } catch { /* ignore */ }
     }
     checkActiveRide();
-  }, [navigate]);
+
+    // Poll for active rides while driver is online (WebSocket fallback)
+    if (!isOnline) return;
+    const pollInterval = setInterval(checkActiveRide, 5000);
+    return () => clearInterval(pollInterval);
+  }, [navigate, isOnline]);
 
   // Get current location
   const getCurrentLocation = useCallback(() => {
@@ -117,12 +122,24 @@ function Home() {
   useEffect(() => {
     if (!token) return;
 
-    const socketUrl = process.env.REACT_APP_SOCKET_URL || 'http://localhost:3000';
+    const socketUrl = process.env.REACT_APP_SOCKET_URL || window.location.origin;
     const socket = io(socketUrl, {
       auth: { token },
       transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 10000,
     });
     socketRef.current = socket;
+
+    socket.on('connect', () => {
+      console.log('[Socket] Connected:', socket.id);
+    });
+
+    socket.on('connect_error', (err) => {
+      console.warn('[Socket] Connection error:', err.message);
+    });
 
     socket.on('ride_request', (data) => {
       // If ride is already auto-assigned, navigate directly to ride screen
@@ -138,7 +155,7 @@ function Home() {
     });
 
     return () => { socket.disconnect(); socketRef.current = null; };
-  }, [token]);
+  }, [token, navigate]);
 
   // Location tracking when online
   useEffect(() => {
