@@ -455,6 +455,43 @@ router.post('/demo-ride', async (req, res, next) => {
   }
 });
 
+// POST /api/driver/cancel-ride — driver cancels/unassigns an assigned ride
+router.post('/cancel-ride', async (req, res, next) => {
+  try {
+    const { ride_id } = await Joi.object({
+      ride_id: Joi.string().uuid().required(),
+    }).validateAsync(req.body);
+
+    const ride = await db('rides')
+      .where({ id: ride_id, driver_id: req.user.id })
+      .whereIn('status', ['driver_assigned', 'driver_arriving'])
+      .first();
+
+    if (!ride) {
+      return res.status(400).json({ error: 'No cancellable ride found' });
+    }
+
+    await db('rides').where({ id: ride_id }).update({
+      status: 'cancelled',
+      driver_id: null,
+      cancellation_reason: 'Driver cancelled',
+    });
+    await db('drivers').where({ id: req.user.id }).update({ status: 'online' });
+
+    // Notify passenger
+    try {
+      const io = require('../websocket/socketServer').getIO();
+      io.to(`passenger:${ride.passenger_id}`).emit('ride_status_update', {
+        ride_id, status: 'cancelled', reason: 'Driver cancelled',
+      });
+    } catch { /* ignore */ }
+
+    res.json({ message: 'Ride cancelled' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/driver/active-ride — get current active ride for this driver
 router.get('/active-ride', async (req, res, next) => {
   try {
@@ -466,6 +503,20 @@ router.get('/active-ride', async (req, res, next) => {
 
     if (!ride) {
       return res.json({ active: false });
+    }
+
+    // Auto-cancel stale rides stuck in driver_assigned for over 10 minutes
+    if (ride.status === 'driver_assigned') {
+      const ageMs = Date.now() - new Date(ride.created_at).getTime();
+      if (ageMs > 10 * 60 * 1000) {
+        await db('rides').where({ id: ride.id }).update({
+          status: 'cancelled',
+          driver_id: null,
+          cancellation_reason: 'Stale ride auto-cancelled',
+        });
+        await db('drivers').where({ id: req.user.id }).update({ status: 'online' });
+        return res.json({ active: false });
+      }
     }
 
     // Get passenger info

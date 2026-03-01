@@ -38,6 +38,7 @@ export const driverAPI = {
   startRide: (ride_id, otp) => api.post('/driver/start-ride', { ride_id, otp }),
   endRide: (ride_id) => api.post('/driver/end-ride', { ride_id }),
   ratePassenger: (ride_id, rating) => api.post('/driver/rate-passenger', { ride_id, rating }),
+  cancelRide: (ride_id) => api.post('/driver/cancel-ride', { ride_id }),
   getEarnings: (period) => api.get(`/driver/earnings?period=${period}`),
   getActiveRide: () => api.get('/driver/active-ride'),
   demoRide: (lat, lng) => api.post('/driver/demo-ride', { lat, lng }),

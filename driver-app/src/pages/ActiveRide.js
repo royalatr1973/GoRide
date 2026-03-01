@@ -142,6 +142,15 @@ function ActiveRide() {
     fetchRide();
   }, [fetchRide]);
 
+  const handleCancelRide = async () => {
+    setLoading(true);
+    try {
+      await driverAPI.cancelRide(id);
+    } catch { /* ignore — navigate home regardless */ }
+    setLoading(false);
+    navigate('/');
+  };
+
   const handleArrive = async () => {
     setLoading(true);
     setError('');
@@ -192,7 +201,7 @@ function ActiveRide() {
 
       {/* Back button (only before ride starts) */}
       {status === 'driver_assigned' && (
-        <button className="floating-back" onClick={() => navigate('/')}>
+        <button className="floating-back" onClick={handleCancelRide} disabled={loading}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6"/>
           </svg>
