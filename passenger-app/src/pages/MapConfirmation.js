@@ -77,9 +77,12 @@ function MapConfirmation() {
     ).addTo(map);
 
     const bounds = L.latLngBounds([[pLat, pLng], [dLat, dLng]]);
-    map.fitBounds(bounds.pad(0.3));
+    try { map.fitBounds(bounds.pad(0.3)); } catch { /* ignore */ }
 
-    setTimeout(() => { map.invalidateSize(); map.fitBounds(bounds.pad(0.3)); }, 200);
+    setTimeout(() => {
+      if (!mapInstanceRef.current) return;
+      try { map.invalidateSize(); map.fitBounds(bounds.pad(0.3)); } catch { /* ignore */ }
+    }, 200);
 
     // Fetch actual driving route from OSRM
     fetch(`https://router.project-osrm.org/route/v1/driving/${pLng},${pLat};${dLng},${dLat}?overview=full&geometries=geojson`)
@@ -88,11 +91,12 @@ function MapConfirmation() {
         return r.json();
       })
       .then(data => {
+        if (!mapInstanceRef.current) return;
         if (data.routes?.[0]) {
-          map.removeLayer(routeLine);
+          mapInstanceRef.current.removeLayer(routeLine);
           const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-          L.polyline(coords, { color: '#6C63FF', weight: 5, opacity: 0.9 }).addTo(map);
-          map.fitBounds(L.latLngBounds(coords).pad(0.15));
+          L.polyline(coords, { color: '#6C63FF', weight: 5, opacity: 0.9 }).addTo(mapInstanceRef.current);
+          try { mapInstanceRef.current.fitBounds(L.latLngBounds(coords).pad(0.15)); } catch { /* ignore */ }
         }
       })
       .catch(err => {

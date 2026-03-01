@@ -102,20 +102,21 @@ function ActiveRide() {
       fetch(`https://router.project-osrm.org/route/v1/driving/${pLng},${pLat};${dLng},${dLat}?overview=full&geometries=geojson`)
         .then((r) => r.json())
         .then((data) => {
+          if (!mapInstanceRef.current) return;
           if (data.routes?.[0]) {
             const coords = data.routes[0].geometry.coordinates.map((c) => [c[1], c[0]]);
-            L.polyline(coords, { color: '#22c55e', weight: 5, opacity: 0.9 }).addTo(map);
-            map.fitBounds(L.latLngBounds(coords).pad(0.15));
+            L.polyline(coords, { color: '#22c55e', weight: 5, opacity: 0.9 }).addTo(mapInstanceRef.current);
+            try { mapInstanceRef.current.fitBounds(L.latLngBounds(coords).pad(0.15)); } catch { /* ignore */ }
           }
         })
         .catch(() => {});
 
-      map.fitBounds([[pLat, pLng], [dLat, dLng]], { padding: [50, 50] });
+      try { map.fitBounds([[pLat, pLng], [dLat, dLng]], { padding: [50, 50] }); } catch { /* ignore */ }
     } else {
       map.setView([pLat, pLng], 15);
     }
 
-    setTimeout(() => map.invalidateSize(), 200);
+    setTimeout(() => { if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize(); }, 200);
   }, [ride, status]);
 
   // Load ride info from navigation state, then fetch from backend
