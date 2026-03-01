@@ -24,6 +24,13 @@ const driverIcon = L.divIcon({
   iconSize: [36, 36], iconAnchor: [18, 18],
 });
 
+function safeFitBounds(map, bounds, options) {
+  if (!map || !map.getContainer()) return;
+  const container = map.getContainer();
+  if (container.clientWidth === 0 || container.clientHeight === 0) return;
+  map.fitBounds(bounds, options);
+}
+
 function RideTracker() {
   const { id } = useParams();
   const location = useLocation();
@@ -153,12 +160,12 @@ function RideTracker() {
             mapInstanceRef.current.removeLayer(routeLine);
             const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
             L.polyline(coords, { color: '#6C63FF', weight: 5, opacity: 0.9 }).addTo(mapInstanceRef.current);
-            try { mapInstanceRef.current.fitBounds(L.latLngBounds(coords).pad(0.15)); } catch { /* ignore */ }
+            safeFitBounds(mapInstanceRef.current, L.latLngBounds(coords).pad(0.15));
           }
         })
         .catch(err => console.warn('Route fetch failed:', err.message));
 
-      try { map.fitBounds(L.latLngBounds([[lat, lng], [dLat, dLng]]).pad(0.3)); } catch { /* ignore */ }
+      safeFitBounds(map, L.latLngBounds([[lat, lng], [dLat, dLng]]).pad(0.3));
     }
 
     setTimeout(() => { if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize(); }, 200);

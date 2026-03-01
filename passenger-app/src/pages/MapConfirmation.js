@@ -16,6 +16,13 @@ const redIcon = L.divIcon({
   iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34],
 });
 
+function safeFitBounds(map, bounds, options) {
+  if (!map || !map.getContainer()) return;
+  const container = map.getContainer();
+  if (container.clientWidth === 0 || container.clientHeight === 0) return;
+  map.fitBounds(bounds, options);
+}
+
 function MapConfirmation() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -47,19 +54,11 @@ function MapConfirmation() {
     setLoading(false);
   };
 
-  const initMap = useCallback(() => {
-    if (!pickupCoords || !dropoffCoords || !mapRef.current) return;
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.remove();
-      mapInstanceRef.current = null;
-    }
+  // Create map once on mount
+  useEffect(() => {
+    if (!mapRef.current || mapInstanceRef.current) return;
 
-    const pLat = pickupCoords.lat, pLng = pickupCoords.lng;
-    const dLat = dropoffCoords.lat, dLng = dropoffCoords.lng;
-
-    const map = L.map(mapRef.current, { zoomControl: false }).setView(
-      [(pLat + dLat) / 2, (pLng + dLng) / 2], 13
-    );
+    const map = L.map(mapRef.current, { zoomControl: false }).setView([13.0827, 80.2707], 13);
     mapInstanceRef.current = map;
 
     L.tileLayer('/api/tiles/{z}/{x}/{y}', {
@@ -67,22 +66,42 @@ function MapConfirmation() {
       attribution: '&copy; OpenStreetMap contributors',
     }).addTo(map);
 
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, []);
+
+  // Add markers and route when coords are ready
+  useEffect(() => {
+    if (!pickupCoords || !dropoffCoords || !mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
+
+    // Clear non-tile layers
+    map.eachLayer((layer) => {
+      if (!(layer instanceof L.TileLayer)) map.removeLayer(layer);
+    });
+
+    const pLat = pickupCoords.lat, pLng = pickupCoords.lng;
+    const dLat = dropoffCoords.lat, dLng = dropoffCoords.lng;
+
     L.marker([pLat, pLng], { icon: greenIcon }).addTo(map);
     L.marker([dLat, dLng], { icon: redIcon }).addTo(map);
 
-    // Show a faint dashed line as placeholder while route loads
     const routeLine = L.polyline(
       [[pLat, pLng], [dLat, dLng]],
       { color: '#6C63FF', weight: 3, opacity: 0.3, dashArray: '8, 8' }
     ).addTo(map);
 
-    const bounds = L.latLngBounds([[pLat, pLng], [dLat, dLng]]);
-    try { map.fitBounds(bounds.pad(0.3)); } catch { /* ignore */ }
-
+    // Delay fitBounds until after layout
     setTimeout(() => {
       if (!mapInstanceRef.current) return;
-      try { map.invalidateSize(); map.fitBounds(bounds.pad(0.3)); } catch { /* ignore */ }
-    }, 200);
+      map.invalidateSize();
+      const bounds = L.latLngBounds([[pLat, pLng], [dLat, dLng]]);
+      safeFitBounds(map, bounds.pad(0.3));
+    }, 300);
 
     // Fetch actual driving route from OSRM
     fetch(`https://router.project-osrm.org/route/v1/driving/${pLng},${pLat};${dLng},${dLat}?overview=full&geometries=geojson`)
@@ -96,7 +115,7 @@ function MapConfirmation() {
           mapInstanceRef.current.removeLayer(routeLine);
           const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
           L.polyline(coords, { color: '#6C63FF', weight: 5, opacity: 0.9 }).addTo(mapInstanceRef.current);
-          try { mapInstanceRef.current.fitBounds(L.latLngBounds(coords).pad(0.15)); } catch { /* ignore */ }
+          safeFitBounds(mapInstanceRef.current, L.latLngBounds(coords).pad(0.15));
         }
       })
       .catch(err => {
@@ -104,39 +123,33 @@ function MapConfirmation() {
       });
   }, [pickupCoords, dropoffCoords]);
 
-  useEffect(() => {
-    initMap();
-    return () => { if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; } };
-  }, [initMap]);
-
   const handleConfirm = () => {
     navigate('/booking', { state: { pickup, dropoff, pickupCoords, dropoffCoords } });
   };
 
-  if (loading) {
-    return (
-      <div className="page map-page">
-        <div className="loading-fullscreen">
+  return (
+    <div className="page map-page">
+      {/* Map — always in the DOM so it has dimensions */}
+      <div ref={mapRef} style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, zIndex: 1 }}></div>
+
+      {/* Loading overlay on top of map */}
+      {loading && (
+        <div className="loading-fullscreen" style={{ zIndex: 5 }}>
           <div className="spinner"></div>
           <p>Finding your locations...</p>
         </div>
-      </div>
-    );
-  }
+      )}
 
-  return (
-    <div className="page map-page">
       {/* Back button floating */}
-      <button className="floating-back" onClick={() => navigate('/')}>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1A1A2E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="15 18 9 12 15 6"/>
-        </svg>
-      </button>
+      {!loading && (
+        <button className="floating-back" onClick={() => navigate('/')}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1A1A2E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+        </button>
+      )}
 
       {error && <div className="error-msg" style={{ position: 'absolute', top: 60, left: 16, right: 16, zIndex: 10 }}>{error}</div>}
-
-      {/* Map */}
-      <div ref={mapRef} style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, zIndex: 1 }}></div>
 
       {/* Bottom sheet */}
       {pickupCoords && dropoffCoords && (

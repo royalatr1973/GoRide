@@ -17,6 +17,13 @@ const redIcon = L.divIcon({
   iconSize: [25, 41], iconAnchor: [12, 41],
 });
 
+function safeFitBounds(map, bounds, options) {
+  if (!map || !map.getContainer()) return;
+  const container = map.getContainer();
+  if (container.clientWidth === 0 || container.clientHeight === 0) return;
+  map.fitBounds(bounds, options);
+}
+
 function ActiveRide() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -106,12 +113,12 @@ function ActiveRide() {
           if (data.routes?.[0]) {
             const coords = data.routes[0].geometry.coordinates.map((c) => [c[1], c[0]]);
             L.polyline(coords, { color: '#22c55e', weight: 5, opacity: 0.9 }).addTo(mapInstanceRef.current);
-            try { mapInstanceRef.current.fitBounds(L.latLngBounds(coords).pad(0.15)); } catch { /* ignore */ }
+            safeFitBounds(mapInstanceRef.current, L.latLngBounds(coords).pad(0.15));
           }
         })
         .catch(() => {});
 
-      try { map.fitBounds([[pLat, pLng], [dLat, dLng]], { padding: [50, 50] }); } catch { /* ignore */ }
+      safeFitBounds(map, [[pLat, pLng], [dLat, dLng]], { padding: [50, 50] });
     } else {
       map.setView([pLat, pLng], 15);
     }

@@ -23,6 +23,13 @@ const VEHICLE_INFO = {
   suv: { name: 'SUV', emoji: '\u{1F690}', seats: 6, tagline: 'Spacious for groups', color: '#E8F5E9' },
 };
 
+function safeFitBounds(map, bounds, options) {
+  if (!map || !map.getContainer()) return;
+  const container = map.getContainer();
+  if (container.clientWidth === 0 || container.clientHeight === 0) return;
+  map.fitBounds(bounds, options);
+}
+
 function Booking() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -80,11 +87,11 @@ function Booking() {
 
     const routeLine = L.polyline([[pLat, pLng], [dLat, dLng]], { color: '#6C63FF', weight: 3, opacity: 0.3, dashArray: '8, 8' }).addTo(map);
     const bounds = L.latLngBounds([[pLat, pLng], [dLat, dLng]]);
-    try { map.fitBounds(bounds.pad(0.3)); } catch { /* ignore */ }
     setTimeout(() => {
       if (!mapInstanceRef.current) return;
-      try { map.invalidateSize(); map.fitBounds(bounds.pad(0.3)); } catch { /* ignore */ }
-    }, 200);
+      map.invalidateSize();
+      safeFitBounds(map, bounds.pad(0.3));
+    }, 300);
 
     fetch(`https://router.project-osrm.org/route/v1/driving/${pLng},${pLat};${dLng},${dLat}?overview=full&geometries=geojson`)
       .then(r => {
@@ -97,7 +104,7 @@ function Booking() {
           mapInstanceRef.current.removeLayer(routeLine);
           const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
           L.polyline(coords, { color: '#6C63FF', weight: 5, opacity: 0.9 }).addTo(mapInstanceRef.current);
-          try { mapInstanceRef.current.fitBounds(L.latLngBounds(coords).pad(0.15)); } catch { /* ignore */ }
+          safeFitBounds(mapInstanceRef.current, L.latLngBounds(coords).pad(0.15));
         }
       })
       .catch(err => {
