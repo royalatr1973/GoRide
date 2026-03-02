@@ -123,9 +123,10 @@ function Home() {
     if (!token) return;
 
     const socketUrl = process.env.REACT_APP_SOCKET_URL || window.location.origin;
+    console.log('[Socket] Connecting to:', socketUrl);
     const socket = io(socketUrl, {
       auth: { token },
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 2000,
