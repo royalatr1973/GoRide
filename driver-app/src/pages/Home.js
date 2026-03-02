@@ -142,12 +142,8 @@ function Home() {
     });
 
     socket.on('ride_request', (data) => {
-      // If ride is already auto-assigned, navigate directly to ride screen
-      if (data.status === 'driver_assigned' && data.ride_id) {
-        navigate(`/ride/${data.ride_id}`, { state: { ride: data } });
-      } else {
-        setRideRequest(data);
-      }
+      console.log('[Socket] Ride request received:', data);
+      setRideRequest(data);
     });
 
     socket.on('ride_cancelled', () => {

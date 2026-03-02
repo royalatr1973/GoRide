@@ -106,40 +106,20 @@ async function findAndAssignDriver(rideId) {
 
   const driver = scored[0];
 
-  // Create ride request and auto-accept it
+  // Create ride request as PENDING — driver must accept or decline
+  const REQUEST_TIMEOUT_SEC = 30;
   const [request] = await db('ride_requests').insert({
     ride_id: rideId,
     driver_id: driver.id,
-    status: 'accepted',
-    expires_at: new Date(Date.now() + 30000),
+    status: 'pending',
+    expires_at: new Date(Date.now() + REQUEST_TIMEOUT_SEC * 1000),
   }).returning('*');
 
-  // Assign driver to ride
-  await db('rides').where({ id: rideId }).update({
-    driver_id: driver.id,
-    status: 'driver_assigned',
-  });
-  // Keep driver 'online' so they remain available for demo bookings
-  await db('drivers').where({ id: driver.id }).update({ status: 'online' });
-
-  // Get driver's operator for the ride
-  const driverRecord = await db('drivers').where({ id: driver.id }).first();
-  if (driverRecord.operator_id) {
-    await db('rides').where({ id: rideId }).update({ operator_id: driverRecord.operator_id });
-  }
-
-  // Get vehicle info
-  const vehicle = await db('vehicles')
-    .join('drivers', 'drivers.vehicle_id', 'vehicles.id')
-    .where('drivers.id', driver.id)
-    .select('vehicles.*')
-    .first();
-
-  // Notify driver of the assigned ride
+  // Send ride request popup to driver — they must accept/decline
   notifyDriver(driver.id, 'ride_request', {
     ride_id: rideId,
     ride_request_id: request.id,
-    status: 'driver_assigned',
+    status: 'pending',
     pickup_address: ride.pickup_address,
     dropoff_address: ride.dropoff_address,
     pickup_lat: ride.pickup_lat,
@@ -152,37 +132,47 @@ async function findAndAssignDriver(rideId) {
     duration_minutes: ride.estimated_duration_minutes,
   });
 
-  // Notify passenger that driver has been assigned
-  notifyPassenger(ride.passenger_id, 'ride_status_update', {
-    ride_id: rideId,
-    status: 'driver_assigned',
-    driver: {
-      name: driver.name,
-      phone: driver.phone,
-      rating: driver.rating_avg,
-      lat: driver.current_lat,
-      lng: driver.current_lng,
-    },
-    vehicle: vehicle ? {
-      registration: vehicle.registration_number,
-      make: vehicle.make,
-      model: vehicle.model,
-      color: vehicle.color,
-      type: vehicle.vehicle_type,
-    } : null,
-  });
+  console.log(`[DriverMatch] Sent ride request to driver ${driver.name} for ride ${rideId} (${REQUEST_TIMEOUT_SEC}s to respond)`);
 
-  // Notify operator dashboard about new ride assignment
-  if (driverRecord.operator_id) {
-    try {
-      const { notifyOperator } = require('../websocket/socketServer');
-      notifyOperator(driverRecord.operator_id, 'ride_status_changed', {
-        ride_id: rideId, status: 'driver_assigned', driver_name: driver.name,
-      });
-    } catch { /* ignore */ }
+  // Wait for driver to respond (poll every 2s up to timeout)
+  const pollInterval = 2000;
+  const maxPolls = Math.ceil(REQUEST_TIMEOUT_SEC * 1000 / pollInterval);
+  let resolved = false;
+
+  for (let i = 0; i < maxPolls; i++) {
+    await sleep(pollInterval);
+
+    // Re-check ride status (passenger may have cancelled)
+    const rideCheck = await db('rides').where({ id: rideId }).first();
+    if (rideCheck.status !== 'searching') {
+      resolved = true;
+      break;
+    }
+
+    const updatedRequest = await db('ride_requests').where({ id: request.id }).first();
+    if (updatedRequest.status === 'accepted') {
+      // Driver accepted — ride is now assigned (handled in respond-to-request route)
+      resolved = true;
+      console.log(`[DriverMatch] Driver ${driver.name} accepted ride ${rideId}`);
+      break;
+    } else if (updatedRequest.status === 'declined') {
+      resolved = true;
+      console.log(`[DriverMatch] Driver ${driver.name} declined ride ${rideId}`);
+      // Cancel the ride since no other drivers are being tried
+      await db('rides').where({ id: rideId }).update({ status: 'cancelled', cancellation_reason: 'Driver declined' });
+      notifyPassenger(ride.passenger_id, 'ride_status_update', { ride_id: rideId, status: 'cancelled', reason: 'Driver declined the request' });
+      break;
+    }
   }
 
-  console.log(`[DriverMatch] Auto-assigned driver ${driver.name} to ride ${rideId}`);
+  // If driver never responded, expire the request and cancel ride
+  if (!resolved) {
+    await db('ride_requests').where({ id: request.id, status: 'pending' }).update({ status: 'expired' });
+    await db('rides').where({ id: rideId, status: 'searching' }).update({ status: 'cancelled', cancellation_reason: 'Driver did not respond' });
+    notifyDriver(driver.id, 'ride_cancelled', { ride_id: rideId });
+    notifyPassenger(ride.passenger_id, 'ride_status_update', { ride_id: rideId, status: 'cancelled', reason: 'Driver did not respond' });
+    console.log(`[DriverMatch] Driver ${driver.name} did not respond to ride ${rideId} — request expired`);
+  }
 }
 
 function notifyPassenger(passengerId, event, data) {
