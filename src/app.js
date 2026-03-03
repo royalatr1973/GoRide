@@ -63,6 +63,25 @@ app.get('/api/debug/drivers', async (req, res) => {
   }
 });
 
+// Debug endpoint — check WebSocket rooms and connected sockets
+app.get('/api/debug/sockets', (req, res) => {
+  try {
+    const { getIO } = require('./websocket/socketServer');
+    const io = getIO();
+    const rooms = {};
+    for (const [roomName, socketIds] of io.sockets.adapter.rooms) {
+      // Skip per-socket rooms (socket IDs also appear as room names)
+      if (!io.sockets.sockets.has(roomName)) {
+        rooms[roomName] = Array.from(socketIds);
+      }
+    }
+    const connectedCount = io.sockets.sockets.size;
+    res.json({ connected_sockets: connectedCount, rooms });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Tile proxy — serves map tiles from the backend so they aren't blocked by CSP or firewalls
 app.get('/api/tiles/:z/:x/:y', (req, res) => {
   const { z, x, y } = req.params;

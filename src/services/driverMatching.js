@@ -185,8 +185,15 @@ function notifyPassenger(passengerId, event, data) {
 function notifyDriver(driverId, event, data) {
   try {
     const { getIO } = require('../websocket/socketServer');
-    getIO().to(`driver:${driverId}`).emit(event, data);
-  } catch { /* socket not initialized in tests */ }
+    const io = getIO();
+    const room = `driver:${driverId}`;
+    const sockets = io.sockets.adapter.rooms.get(room);
+    const count = sockets ? sockets.size : 0;
+    console.log(`[DriverMatch] Emitting '${event}' to room '${room}' (${count} socket(s) in room)`);
+    io.to(room).emit(event, data);
+  } catch (err) {
+    console.error('[DriverMatch] Failed to notify driver:', err.message);
+  }
 }
 
 function sleep(ms) {

@@ -19,6 +19,7 @@ function Home() {
   const [greeting, setGreeting] = useState('Hello');
   const [error, setError] = useState('');
   const [toggling, setToggling] = useState(false);
+  const [socketStatus, setSocketStatus] = useState('disconnected');
 
   const socketRef = useRef(null);
   const locationWatchRef = useRef(null);
@@ -136,10 +137,17 @@ function Home() {
 
     socket.on('connect', () => {
       console.log('[Socket] Connected:', socket.id);
+      setSocketStatus('connected');
+    });
+
+    socket.on('disconnect', (reason) => {
+      console.warn('[Socket] Disconnected:', reason);
+      setSocketStatus('disconnected');
     });
 
     socket.on('connect_error', (err) => {
       console.warn('[Socket] Connection error:', err.message);
+      setSocketStatus('error: ' + err.message);
     });
 
     socket.on('ride_request', (data) => {
@@ -151,7 +159,7 @@ function Home() {
       setRideRequest(null);
     });
 
-    return () => { socket.disconnect(); socketRef.current = null; };
+    return () => { socket.disconnect(); socketRef.current = null; setSocketStatus('disconnected'); };
   }, [token, navigate]);
 
   // Location tracking when online
@@ -243,6 +251,16 @@ function Home() {
       <div className={`status-indicator ${isOnline ? 'online' : 'offline'}`}>
         <span className="status-dot"></span>
         <span>{isOnline ? 'Online' : 'Offline'}</span>
+      </div>
+
+      {/* Debug: WebSocket status (visible) */}
+      <div style={{
+        position: 'fixed', bottom: 200, left: 10, zIndex: 9999,
+        padding: '4px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600,
+        background: socketStatus === 'connected' ? '#22c55e' : '#ef4444',
+        color: 'white', boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+      }}>
+        WS: {socketStatus}
       </div>
 
       {/* Top bar */}

@@ -16,10 +16,11 @@ function initSocketServer(httpServer) {
     }
 
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
       socket.user = decoded;
       next();
-    } catch {
+    } catch (err) {
+      console.error('[Socket] Auth failed:', err.message);
       next(new Error('Invalid token'));
     }
   });
