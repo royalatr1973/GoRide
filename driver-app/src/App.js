@@ -32,7 +32,7 @@ function AppRoutes() {
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <BrowserRouter basename="/driver">
         <AppRoutes />
       </BrowserRouter>
     </AuthProvider>

@@ -34,6 +34,9 @@ app.use(express.urlencoded({ extended: true }));
 // Serve operator dashboard static files
 app.use('/dashboard', express.static(path.join(__dirname, '../operator-dashboard/build')));
 
+// Serve driver app static files
+app.use('/driver', express.static(path.join(__dirname, '../driver-app/build')));
+
 // Serve passenger app static files
 app.use(express.static(path.join(__dirname, '../passenger-app/build')));
 
@@ -95,9 +98,19 @@ app.get('/api/tiles/:z/:x/:y', (req, res) => {
   });
 });
 
+// SPA fallback for driver app
+app.get('/driver/*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../driver-app/build', 'index.html'));
+});
+
+// SPA fallback for operator dashboard
+app.get('/dashboard/*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../operator-dashboard/build', 'index.html'));
+});
+
 // Serve passenger app for all non-API routes (SPA fallback)
 app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api') || req.path.startsWith('/dashboard')) {
+  if (req.path.startsWith('/api')) {
     return next();
   }
   res.sendFile(path.join(__dirname, '../passenger-app/build', 'index.html'));
