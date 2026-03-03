@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node --max-http-header-size=65536 src/server.js",
     "dev": "nodemon --max-http-header-size=65536 src/server.js",
+    "build:apps": "cd passenger-app && npm run build && cd ../driver-app && npm run build && cd ../operator-dashboard && npm run build",
     "migrate": "knex migrate:latest --knexfile src/db/knexfile.js",
     "migrate:rollback": "knex migrate:rollback --knexfile src/db/knexfile.js",
     "seed": "knex seed:run --knexfile src/db/knexfile.js",

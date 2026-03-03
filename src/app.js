@@ -32,14 +32,31 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Helper: check if a build directory exists
+const fs = require('fs');
+const buildExists = (dir) => fs.existsSync(path.join(__dirname, dir));
+const missingBuildPage = (appName) => `<!doctype html><html><head><title>${appName} - Build Missing</title></head><body style="font-family:sans-serif;text-align:center;padding:60px"><h2>${appName} build not found</h2><p>Run this from the project root:</p><pre style="background:#f3f4f6;padding:16px;border-radius:8px;display:inline-block">npm run build:apps</pre></body></html>`;
+
 // Serve operator dashboard static files
-app.use('/dashboard', express.static(path.join(__dirname, '../operator-dashboard/build')));
+if (buildExists('../operator-dashboard/build')) {
+  app.use('/dashboard', express.static(path.join(__dirname, '../operator-dashboard/build')));
+} else {
+  console.warn('WARNING: operator-dashboard/build not found. Run: npm run build:apps');
+}
 
 // Serve driver app static files
-app.use('/driver', express.static(path.join(__dirname, '../driver-app/build')));
+if (buildExists('../driver-app/build')) {
+  app.use('/driver', express.static(path.join(__dirname, '../driver-app/build')));
+} else {
+  console.warn('WARNING: driver-app/build not found. Run: npm run build:apps');
+}
 
 // Serve passenger app static files
-app.use(express.static(path.join(__dirname, '../passenger-app/build')));
+if (buildExists('../passenger-app/build')) {
+  app.use(express.static(path.join(__dirname, '../passenger-app/build')));
+} else {
+  console.warn('WARNING: passenger-app/build not found. Run: npm run build:apps');
+}
 
 // API routes
 app.use('/api/auth', authRoutes);
@@ -100,13 +117,27 @@ app.get('/api/tiles/:z/:x/:y', (req, res) => {
 });
 
 // SPA fallback for driver app
+app.get('/driver', (req, res) => {
+  const index = path.join(__dirname, '../driver-app/build', 'index.html');
+  if (fs.existsSync(index)) return res.sendFile(index);
+  res.send(missingBuildPage('Driver App'));
+});
 app.get('/driver/*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../driver-app/build', 'index.html'));
+  const index = path.join(__dirname, '../driver-app/build', 'index.html');
+  if (fs.existsSync(index)) return res.sendFile(index);
+  res.send(missingBuildPage('Driver App'));
 });
 
 // SPA fallback for operator dashboard
+app.get('/dashboard', (req, res) => {
+  const index = path.join(__dirname, '../operator-dashboard/build', 'index.html');
+  if (fs.existsSync(index)) return res.sendFile(index);
+  res.send(missingBuildPage('Operator Dashboard'));
+});
 app.get('/dashboard/*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../operator-dashboard/build', 'index.html'));
+  const index = path.join(__dirname, '../operator-dashboard/build', 'index.html');
+  if (fs.existsSync(index)) return res.sendFile(index);
+  res.send(missingBuildPage('Operator Dashboard'));
 });
 
 // Serve passenger app for all non-API routes (SPA fallback)
@@ -114,7 +145,9 @@ app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api')) {
     return next();
   }
-  res.sendFile(path.join(__dirname, '../passenger-app/build', 'index.html'));
+  const index = path.join(__dirname, '../passenger-app/build', 'index.html');
+  if (fs.existsSync(index)) return res.sendFile(index);
+  res.send(missingBuildPage('Passenger App'));
 });
 
 // Error handler
