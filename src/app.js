@@ -14,8 +14,9 @@ const { errorHandler } = require('./middleware/errorHandler');
 const app = express();
 
 // Security & parsing middleware
+const isDev = process.env.NODE_ENV !== 'production';
 app.use(helmet({
-  contentSecurityPolicy: {
+  contentSecurityPolicy: isDev ? false : {
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],

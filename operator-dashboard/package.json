@@ -2,6 +2,7 @@
   "name": "freedom-operator-dashboard",
   "version": "1.0.0",
   "private": true,
+  "homepage": "/dashboard",
   "dependencies": {
     "axios": "^1.6.5",
     "react": "^18.2.0",
