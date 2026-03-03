@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
+const fs = require('fs');
 
 const authRoutes = require('./routes/auth');
 const passengerRoutes = require('./routes/passenger');
@@ -32,28 +33,50 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Helper: check if a build directory exists
-const fs = require('fs');
-const buildExists = (dir) => fs.existsSync(path.join(__dirname, dir));
+// Build directories
+const driverBuild = path.join(__dirname, '../driver-app/build');
+const dashboardBuild = path.join(__dirname, '../operator-dashboard/build');
+const passengerBuild = path.join(__dirname, '../passenger-app/build');
+
+const buildExists = (dir) => fs.existsSync(dir);
 const missingBuildPage = (appName) => `<!doctype html><html><head><title>${appName} - Build Missing</title></head><body style="font-family:sans-serif;text-align:center;padding:60px"><h2>${appName} build not found</h2><p>Run this from the project root:</p><pre style="background:#f3f4f6;padding:16px;border-radius:8px;display:inline-block">npm run build:apps</pre></body></html>`;
 
-// Serve operator dashboard static files
-if (buildExists('../operator-dashboard/build')) {
-  app.use('/dashboard', express.static(path.join(__dirname, '../operator-dashboard/build')));
+// Helper: read a sub-app's index.html and ensure asset paths include the sub-path prefix.
+// This fixes builds where react-scripts didn't apply the "homepage" field.
+function getSubAppHtml(buildDir, prefix) {
+  try {
+    const raw = fs.readFileSync(path.join(buildDir, 'index.html'), 'utf8');
+    // If paths already have the prefix, return as-is
+    if (raw.includes(`="${prefix}/static/`)) return raw;
+    // Rewrite /static/ references to include the sub-app prefix
+    return raw
+      .replace(/(src|href)="\/static\//g, `$1="${prefix}/static/`)
+      .replace(/(src|href)="\/favicon/g, `$1="${prefix}/favicon`);
+  } catch (e) {
+    return missingBuildPage(prefix.slice(1));
+  }
+}
+
+// Cache patched HTML at startup
+const driverHtml = getSubAppHtml(driverBuild, '/driver');
+const dashboardHtml = getSubAppHtml(dashboardBuild, '/dashboard');
+
+// Serve sub-app static files (index: false — we serve patched HTML ourselves)
+if (buildExists(dashboardBuild)) {
+  app.use('/dashboard', express.static(dashboardBuild, { index: false }));
 } else {
   console.warn('WARNING: operator-dashboard/build not found. Run: npm run build:apps');
 }
 
-// Serve driver app static files
-if (buildExists('../driver-app/build')) {
-  app.use('/driver', express.static(path.join(__dirname, '../driver-app/build')));
+if (buildExists(driverBuild)) {
+  app.use('/driver', express.static(driverBuild, { index: false }));
 } else {
   console.warn('WARNING: driver-app/build not found. Run: npm run build:apps');
 }
 
 // Serve passenger app static files
-if (buildExists('../passenger-app/build')) {
-  app.use(express.static(path.join(__dirname, '../passenger-app/build')));
+if (buildExists(passengerBuild)) {
+  app.use(express.static(passengerBuild));
 } else {
   console.warn('WARNING: passenger-app/build not found. Run: npm run build:apps');
 }
@@ -116,28 +139,14 @@ app.get('/api/tiles/:z/:x/:y', (req, res) => {
   });
 });
 
-// SPA fallback for driver app
-app.get('/driver', (req, res) => {
-  const index = path.join(__dirname, '../driver-app/build', 'index.html');
-  if (fs.existsSync(index)) return res.sendFile(index);
-  res.send(missingBuildPage('Driver App'));
-});
-app.get('/driver/*', (req, res) => {
-  const index = path.join(__dirname, '../driver-app/build', 'index.html');
-  if (fs.existsSync(index)) return res.sendFile(index);
-  res.send(missingBuildPage('Driver App'));
+// SPA fallback for driver app (serves patched HTML with correct asset paths)
+app.get(['/driver', '/driver/*'], (req, res) => {
+  res.type('html').send(driverHtml);
 });
 
-// SPA fallback for operator dashboard
-app.get('/dashboard', (req, res) => {
-  const index = path.join(__dirname, '../operator-dashboard/build', 'index.html');
-  if (fs.existsSync(index)) return res.sendFile(index);
-  res.send(missingBuildPage('Operator Dashboard'));
-});
-app.get('/dashboard/*', (req, res) => {
-  const index = path.join(__dirname, '../operator-dashboard/build', 'index.html');
-  if (fs.existsSync(index)) return res.sendFile(index);
-  res.send(missingBuildPage('Operator Dashboard'));
+// SPA fallback for operator dashboard (serves patched HTML with correct asset paths)
+app.get(['/dashboard', '/dashboard/*'], (req, res) => {
+  res.type('html').send(dashboardHtml);
 });
 
 // Serve passenger app for all non-API routes (SPA fallback)
@@ -145,7 +154,7 @@ app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api')) {
     return next();
   }
-  const index = path.join(__dirname, '../passenger-app/build', 'index.html');
+  const index = path.join(passengerBuild, 'index.html');
   if (fs.existsSync(index)) return res.sendFile(index);
   res.send(missingBuildPage('Passenger App'));
 });
