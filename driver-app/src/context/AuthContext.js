@@ -8,11 +8,16 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem('driver_token');
-    const savedUser = localStorage.getItem('driver_user');
-    if (savedToken && savedUser) {
-      setToken(savedToken);
-      setUser(JSON.parse(savedUser));
+    try {
+      const savedToken = localStorage.getItem('driver_token');
+      const savedUser = localStorage.getItem('driver_user');
+      if (savedToken && savedUser) {
+        setToken(savedToken);
+        setUser(JSON.parse(savedUser));
+      }
+    } catch {
+      localStorage.removeItem('driver_token');
+      localStorage.removeItem('driver_user');
     }
     setLoading(false);
   }, []);

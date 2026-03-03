@@ -16,7 +16,7 @@ api.interceptors.response.use(
     if (err.response?.status === 401) {
       localStorage.removeItem('driver_token');
       localStorage.removeItem('driver_user');
-      window.location.href = '/login';
+      window.location.href = '/driver/login';
     }
     return Promise.reject(err);
   },
