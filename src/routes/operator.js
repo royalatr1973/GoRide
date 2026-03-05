@@ -72,19 +72,30 @@ router.post('/drivers/add', async (req, res, next) => {
     });
     const data = await schema.validateAsync(req.body);
 
-    const [driver] = await db('drivers').insert({
-      name: data.name,
-      phone: data.phone,
-      license_number: data.license_number,
-      vehicle_id: data.vehicle_id,
-      operator_id: req.user.id,
-    }).returning('*');
-
-    res.status(201).json({ message: 'Driver added', driver });
-  } catch (err) {
-    if (err.code === '23505') {
-      return res.status(409).json({ error: 'Driver with this phone already exists' });
+    // Check if driver with this phone already exists (e.g. self-registered via driver app)
+    let driver;
+    const existing = await db('drivers').where({ phone: data.phone }).first();
+    if (existing) {
+      [driver] = await db('drivers').where({ id: existing.id }).update({
+        name: data.name,
+        license_number: data.license_number,
+        vehicle_id: data.vehicle_id,
+        operator_id: req.user.id,
+        is_verified: true,
+      }).returning('*');
+    } else {
+      [driver] = await db('drivers').insert({
+        name: data.name,
+        phone: data.phone,
+        license_number: data.license_number,
+        vehicle_id: data.vehicle_id,
+        operator_id: req.user.id,
+        is_verified: true,
+      }).returning('*');
     }
+
+    res.status(201).json({ message: existing ? 'Driver updated and verified' : 'Driver added', driver });
+  } catch (err) {
     next(err);
   }
 });
