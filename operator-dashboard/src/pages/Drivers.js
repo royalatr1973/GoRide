@@ -3,28 +3,47 @@ import api from '../api';
 
 export default function Drivers() {
   const [drivers, setDrivers] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ name: '', phone: '', license_number: '' });
+  const [form, setForm] = useState({ name: '', phone: '', license_number: '', vehicle_id: '' });
 
   const loadDrivers = () => {
     api.get('/operator/drivers').then((res) => setDrivers(res.data.drivers)).catch(console.error);
   };
 
-  useEffect(loadDrivers, []);
+  const loadVehicles = () => {
+    api.get('/operator/vehicles').then((res) => setVehicles(res.data.vehicles)).catch(console.error);
+  };
+
+  useEffect(() => {
+    loadDrivers();
+    loadVehicles();
+  }, []);
 
   const handleAdd = async (e) => {
     e.preventDefault();
     try {
-      await api.post('/operator/drivers/add', {
+      const payload = {
         name: form.name,
         phone: `+91${form.phone}`,
         license_number: form.license_number,
-      });
+      };
+      if (form.vehicle_id) payload.vehicle_id = form.vehicle_id;
+      await api.post('/operator/drivers/add', payload);
       setShowModal(false);
-      setForm({ name: '', phone: '', license_number: '' });
+      setForm({ name: '', phone: '', license_number: '', vehicle_id: '' });
       loadDrivers();
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to add driver');
+    }
+  };
+
+  const handleAssignVehicle = async (driverId, vehicleId) => {
+    try {
+      await api.put(`/operator/drivers/${driverId}`, { vehicle_id: vehicleId || null });
+      loadDrivers();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to assign vehicle');
     }
   };
 
@@ -55,7 +74,20 @@ export default function Drivers() {
                 <td>{d.name || '—'}</td>
                 <td>{d.phone}</td>
                 <td>{d.license_number || '—'}</td>
-                <td>{d.vehicle_make ? `${d.vehicle_make} ${d.vehicle_model} (${d.registration_number})` : '—'}</td>
+                <td>
+                  <select
+                    value={d.vehicle_id || ''}
+                    onChange={(e) => handleAssignVehicle(d.id, e.target.value)}
+                    style={{ padding: '4px 8px', fontSize: 13, borderRadius: 6, border: '1px solid #DFE6E9' }}
+                  >
+                    <option value="">No vehicle</option>
+                    {vehicles.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.make} {v.model} ({v.registration_number})
+                      </option>
+                    ))}
+                  </select>
+                </td>
                 <td><span className={`badge badge-${d.status}`}>{d.status}</span></td>
                 <td>{d.rating_avg}</td>
                 <td>{d.acceptance_rate}%</td>
@@ -92,6 +124,17 @@ export default function Drivers() {
               <div className="form-group">
                 <label>License Number</label>
                 <input value={form.license_number} onChange={(e) => setForm({ ...form, license_number: e.target.value })} required />
+              </div>
+              <div className="form-group">
+                <label>Assign Vehicle</label>
+                <select value={form.vehicle_id} onChange={(e) => setForm({ ...form, vehicle_id: e.target.value })}>
+                  <option value="">None (assign later)</option>
+                  {vehicles.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.make} {v.model} ({v.registration_number})
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>

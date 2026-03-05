@@ -105,6 +105,30 @@ router.delete('/drivers/:id', async (req, res, next) => {
   }
 });
 
+// PUT /api/operator/drivers/:id
+router.put('/drivers/:id', async (req, res, next) => {
+  try {
+    const schema = Joi.object({
+      name: Joi.string().max(100),
+      license_number: Joi.string().max(50),
+      vehicle_id: Joi.string().uuid().allow(null),
+    });
+    const data = await schema.validateAsync(req.body);
+
+    const [updated] = await db('drivers')
+      .where({ id: req.params.id, operator_id: req.user.id })
+      .update(data)
+      .returning('*');
+
+    if (!updated) {
+      return res.status(404).json({ error: 'Driver not found' });
+    }
+    res.json({ message: 'Driver updated', driver: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/operator/vehicles
 router.get('/vehicles', async (req, res, next) => {
   try {
