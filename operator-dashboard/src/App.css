@@ -222,6 +222,15 @@ body {
   border: 1px solid var(--border);
 }
 
+.btn-danger {
+  background: var(--danger);
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #b71c1c;
+}
+
 /* Modal */
 .modal-overlay {
   position: fixed;

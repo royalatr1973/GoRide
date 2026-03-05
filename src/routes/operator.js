@@ -89,6 +89,22 @@ router.post('/drivers/add', async (req, res, next) => {
   }
 });
 
+// DELETE /api/operator/drivers/:id
+router.delete('/drivers/:id', async (req, res, next) => {
+  try {
+    const deleted = await db('drivers')
+      .where({ id: req.params.id, operator_id: req.user.id })
+      .del();
+
+    if (!deleted) {
+      return res.status(404).json({ error: 'Driver not found' });
+    }
+    res.json({ message: 'Driver deleted' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/operator/vehicles
 router.get('/vehicles', async (req, res, next) => {
   try {
@@ -125,6 +141,22 @@ router.post('/vehicles/add', async (req, res, next) => {
     if (err.code === '23505') {
       return res.status(409).json({ error: 'Vehicle with this registration already exists' });
     }
+    next(err);
+  }
+});
+
+// DELETE /api/operator/vehicles/:id
+router.delete('/vehicles/:id', async (req, res, next) => {
+  try {
+    const deleted = await db('vehicles')
+      .where({ id: req.params.id, operator_id: req.user.id })
+      .del();
+
+    if (!deleted) {
+      return res.status(404).json({ error: 'Vehicle not found' });
+    }
+    res.json({ message: 'Vehicle deleted' });
+  } catch (err) {
     next(err);
   }
 });

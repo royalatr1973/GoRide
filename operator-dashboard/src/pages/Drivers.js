@@ -46,6 +46,7 @@ export default function Drivers() {
               <th>Status</th>
               <th>Rating</th>
               <th>Acceptance</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -58,6 +59,17 @@ export default function Drivers() {
                 <td><span className={`badge badge-${d.status}`}>{d.status}</span></td>
                 <td>{d.rating_avg}</td>
                 <td>{d.acceptance_rate}%</td>
+                <td>
+                  <button
+                    className="btn btn-danger"
+                    style={{ padding: '4px 12px', fontSize: 13 }}
+                    onClick={() => {
+                      if (window.confirm(`Delete driver "${d.name}"?`)) {
+                        api.delete(`/operator/drivers/${d.id}`).then(loadDrivers).catch((err) => alert(err.response?.data?.error || 'Failed to delete'));
+                      }
+                    }}
+                  >Delete</button>
+                </td>
               </tr>
             ))}
           </tbody>

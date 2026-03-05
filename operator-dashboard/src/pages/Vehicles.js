@@ -44,6 +44,7 @@ export default function Vehicles() {
               <th>Type</th>
               <th>Seats</th>
               <th>Active</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -56,6 +57,17 @@ export default function Vehicles() {
                 <td><span className={`badge badge-${v.is_active ? 'online' : 'offline'}`}>{v.vehicle_type}</span></td>
                 <td>{v.seats}</td>
                 <td>{v.is_active ? 'Yes' : 'No'}</td>
+                <td>
+                  <button
+                    className="btn btn-danger"
+                    style={{ padding: '4px 12px', fontSize: 13 }}
+                    onClick={() => {
+                      if (window.confirm(`Delete vehicle "${v.registration_number}"?`)) {
+                        api.delete(`/operator/vehicles/${v.id}`).then(loadVehicles).catch((err) => alert(err.response?.data?.error || 'Failed to delete'));
+                      }
+                    }}
+                  >Delete</button>
+                </td>
               </tr>
             ))}
           </tbody>
