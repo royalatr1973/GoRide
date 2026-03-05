@@ -22,7 +22,7 @@ export default function Dashboard() {
 
   // WebSocket for real-time updates
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('operator_token');
     if (!token) return;
 
     const socketUrl = process.env.REACT_APP_SOCKET_URL || window.location.origin;

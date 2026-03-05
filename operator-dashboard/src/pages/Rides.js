@@ -22,7 +22,7 @@ export default function Rides() {
 
   // WebSocket for real-time ride updates
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('operator_token');
     if (!token) return;
 
     const socketUrl = process.env.REACT_APP_SOCKET_URL || window.location.origin;

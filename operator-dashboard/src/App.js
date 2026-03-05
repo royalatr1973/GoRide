@@ -11,7 +11,7 @@ import FareSettings from './pages/FareSettings';
 import Settings from './pages/Settings';
 
 function ProtectedRoute({ children }) {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('operator_token');
   return token ? children : <Navigate to="/login" />;
 }
 

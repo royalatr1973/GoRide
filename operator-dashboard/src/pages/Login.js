@@ -31,7 +31,7 @@ export default function Login() {
     setLoading(true);
     try {
       const res = await api.post('/auth/verify-otp', { phone: `+91${phone}`, otp, role: 'operator' });
-      localStorage.setItem('token', res.data.token);
+      localStorage.setItem('operator_token', res.data.token);
       navigate('/');
     } catch (err) {
       setError(err.response?.data?.error || 'Invalid OTP');
