@@ -45,7 +45,7 @@ router.get('/dashboard', async (req, res, next) => {
 router.get('/drivers', async (req, res, next) => {
   try {
     const drivers = await db('drivers')
-      .where({ operator_id: req.user.id })
+      .where('drivers.operator_id', req.user.id)
       .leftJoin('vehicles', 'drivers.vehicle_id', 'vehicles.id')
       .select(
         'drivers.*',
@@ -136,7 +136,7 @@ router.get('/rides', async (req, res, next) => {
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
     let query = db('rides')
-      .where({ operator_id: req.user.id })
+      .where('rides.operator_id', req.user.id)
       .leftJoin('passengers', 'rides.passenger_id', 'passengers.id')
       .leftJoin('drivers', 'rides.driver_id', 'drivers.id')
       .select(
