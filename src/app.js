@@ -107,6 +107,77 @@ app.get('/api/debug/drivers', async (req, res) => {
   }
 });
 
+// Debug endpoint — check driver matching readiness
+app.get('/api/debug/match-check', async (req, res) => {
+  try {
+    const db = require('./db/connection');
+    const drivers = await db('drivers').select('*');
+    const results = [];
+
+    for (const d of drivers) {
+      const checks = {
+        id: d.id,
+        name: d.name,
+        phone: d.phone,
+        status: d.status,
+        is_verified: d.is_verified,
+        has_location: !!(d.current_lat && d.current_lng),
+        vehicle_id: d.vehicle_id,
+        operator_id: d.operator_id,
+        vehicle: null,
+        operator: null,
+        issues: [],
+      };
+
+      if (!d.is_verified) checks.issues.push('NOT VERIFIED (is_verified=false)');
+      if (!['online', 'arriving'].includes(d.status)) checks.issues.push(`STATUS is "${d.status}" (needs "online" or "arriving")`);
+      if (!d.current_lat || !d.current_lng) checks.issues.push('NO LOCATION SET (current_lat/lng missing)');
+
+      if (d.vehicle_id) {
+        const v = await db('vehicles').where({ id: d.vehicle_id }).first();
+        if (v) {
+          checks.vehicle = { type: v.vehicle_type, make: v.make, model: v.model, is_active: v.is_active, reg: v.registration_number };
+          if (!v.is_active) checks.issues.push('VEHICLE NOT ACTIVE');
+        } else {
+          checks.issues.push('VEHICLE NOT FOUND in DB');
+        }
+      } else {
+        checks.issues.push('NO VEHICLE ASSIGNED');
+      }
+
+      if (d.operator_id) {
+        const op = await db('operators').where({ id: d.operator_id }).first();
+        if (op) {
+          checks.operator = { name: op.name, is_active: op.is_active };
+          if (!op.is_active) checks.issues.push('OPERATOR NOT ACTIVE');
+        } else {
+          checks.issues.push('OPERATOR NOT FOUND in DB');
+        }
+      } else {
+        checks.issues.push('NO OPERATOR ASSIGNED');
+      }
+
+      checks.ready = checks.issues.length === 0;
+      results.push(checks);
+    }
+
+    // Also check WebSocket rooms for drivers
+    try {
+      const { getIO } = require('./websocket/socketServer');
+      const io = getIO();
+      for (const r of results) {
+        const room = `driver:${r.id}`;
+        const sockets = io.sockets.adapter.rooms.get(room);
+        r.websocket_connected = sockets ? sockets.size : 0;
+      }
+    } catch {}
+
+    res.json({ drivers: results });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Debug endpoint — check WebSocket rooms and connected sockets
 app.get('/api/debug/sockets', (req, res) => {
   try {

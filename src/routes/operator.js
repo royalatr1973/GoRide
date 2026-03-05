@@ -126,9 +126,12 @@ router.put('/drivers/:id', async (req, res, next) => {
     });
     const data = await schema.validateAsync(req.body);
 
+    // Always verify driver when operator updates them
+    const updateData = { ...data, is_verified: true };
+
     const [updated] = await db('drivers')
       .where({ id: req.params.id, operator_id: req.user.id })
-      .update(data)
+      .update(updateData)
       .returning('*');
 
     if (!updated) {

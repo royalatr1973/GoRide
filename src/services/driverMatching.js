@@ -25,6 +25,28 @@ async function findAndAssignDriver(rideId) {
 
   console.log(`[DriverMatch] Searching for '${ride.vehicle_type_requested}' driver near (${pickupLat}, ${pickupLng})`);
 
+  // Debug: show all drivers and their state
+  try {
+    const allDrivers = await db('drivers').select('id', 'name', 'phone', 'status', 'is_verified', 'vehicle_id', 'operator_id', 'current_lat', 'current_lng');
+    console.log(`[DriverMatch] All drivers in DB:`, JSON.stringify(allDrivers, null, 2));
+    for (const d of allDrivers) {
+      if (d.vehicle_id) {
+        const v = await db('vehicles').where({ id: d.vehicle_id }).first();
+        console.log(`[DriverMatch]   Driver "${d.name}" vehicle:`, v ? `${v.make} ${v.model} (${v.vehicle_type}, active=${v.is_active})` : 'NOT FOUND');
+      } else {
+        console.log(`[DriverMatch]   Driver "${d.name}" has NO vehicle assigned`);
+      }
+      if (d.operator_id) {
+        const op = await db('operators').where({ id: d.operator_id }).first();
+        console.log(`[DriverMatch]   Driver "${d.name}" operator:`, op ? `${op.name} (active=${op.is_active})` : 'NOT FOUND');
+      } else {
+        console.log(`[DriverMatch]   Driver "${d.name}" has NO operator assigned`);
+      }
+    }
+  } catch (debugErr) {
+    console.error('[DriverMatch] Debug query failed:', debugErr.message);
+  }
+
   // Find eligible drivers (include 'arriving' so drivers can be reused in demo)
   let candidates;
   try {
