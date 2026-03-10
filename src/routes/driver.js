@@ -546,4 +546,42 @@ router.get('/active-ride', async (req, res, next) => {
   }
 });
 
+// GET /api/driver/pending-request — poll for pending ride requests (WebSocket fallback)
+router.get('/pending-request', async (req, res, next) => {
+  try {
+    const request = await db('ride_requests')
+      .where({ driver_id: req.user.id, status: 'pending' })
+      .where('expires_at', '>', new Date())
+      .orderBy('created_at', 'desc')
+      .first();
+
+    if (!request) {
+      return res.json({ pending: false });
+    }
+
+    const ride = await db('rides').where({ id: request.ride_id }).first();
+    if (!ride || ride.status !== 'searching') {
+      return res.json({ pending: false });
+    }
+
+    res.json({
+      pending: true,
+      ride_request_id: request.id,
+      ride_id: ride.id,
+      pickup_address: ride.pickup_address,
+      dropoff_address: ride.dropoff_address,
+      pickup_lat: ride.pickup_lat,
+      pickup_lng: ride.pickup_lng,
+      dropoff_lat: ride.dropoff_lat,
+      dropoff_lng: ride.dropoff_lng,
+      estimated_fare: ride.estimated_fare,
+      vehicle_type: ride.vehicle_type_requested,
+      distance_km: ride.estimated_distance_km,
+      duration_minutes: ride.estimated_duration_minutes,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

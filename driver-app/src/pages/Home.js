@@ -47,7 +47,7 @@ function Home() {
 
   useEffect(() => { fetchEarnings(); }, [fetchEarnings]);
 
-  // Check for active ride on load + poll every 5s when online (fallback for WebSocket)
+  // Check for active ride on load
   useEffect(() => {
     async function checkActiveRide() {
       try {
@@ -58,12 +58,27 @@ function Home() {
       } catch { /* ignore */ }
     }
     checkActiveRide();
+  }, [navigate]);
 
-    // Poll for active rides while driver is online (WebSocket fallback)
+  // Poll for pending ride requests every 3s when online (WebSocket fallback)
+  useEffect(() => {
     if (!isOnline) return;
-    const pollInterval = setInterval(checkActiveRide, 5000);
-    return () => clearInterval(pollInterval);
-  }, [navigate, isOnline]);
+
+    const pollForRequests = async () => {
+      // Skip if we already have a ride request showing
+      if (rideRequest) return;
+      try {
+        const { data } = await driverAPI.getPendingRequest();
+        if (data.pending) {
+          console.log('[Poll] Pending ride request found:', data);
+          setRideRequest(data);
+        }
+      } catch { /* ignore */ }
+    };
+
+    const interval = setInterval(pollForRequests, 3000);
+    return () => clearInterval(interval);
+  }, [isOnline, rideRequest]);
 
   // Get current location
   const getCurrentLocation = useCallback(() => {

@@ -1,13 +1,13 @@
 {
   "files": {
     "main.css": "/driver/static/css/main.447ca4f6.css",
-    "main.js": "/driver/static/js/main.2872e1a8.js",
+    "main.js": "/driver/static/js/main.67db13f6.js",
     "index.html": "/driver/index.html",
     "main.447ca4f6.css.map": "/driver/static/css/main.447ca4f6.css.map",
-    "main.2872e1a8.js.map": "/driver/static/js/main.2872e1a8.js.map"
+    "main.67db13f6.js.map": "/driver/static/js/main.67db13f6.js.map"
   },
   "entrypoints": [
     "static/css/main.447ca4f6.css",
-    "static/js/main.2872e1a8.js"
+    "static/js/main.67db13f6.js"
   ]
 }

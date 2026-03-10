@@ -30,17 +30,29 @@ function initSocketServer(httpServer) {
     console.log(`Socket connected: ${role}:${id}`);
 
     // Join role-specific room
-    socket.join(`${role}:${id}`);
+    const room = `${role}:${id}`;
+    socket.join(room);
 
-    // For drivers, look up operator_id from DB and join operator room
+    // Verify room was joined
+    const roomSockets = io.sockets.adapter.rooms.get(room);
+    console.log(`[Socket] Joined room '${room}' — ${roomSockets ? roomSockets.size : 0} socket(s) in room`);
+
+    // For drivers, verify DB record exists and look up operator_id
     if (role === 'driver') {
       try {
         const db = require('../db/connection');
-        const driver = await db('drivers').where({ id }).select('operator_id').first();
-        if (driver?.operator_id) {
-          socket.user.operator_id = driver.operator_id;
+        const driver = await db('drivers').where({ id }).select('id', 'name', 'operator_id').first();
+        if (driver) {
+          console.log(`[Socket] Driver verified: ${driver.name} (${driver.id})`);
+          if (driver.operator_id) {
+            socket.user.operator_id = driver.operator_id;
+          }
+        } else {
+          console.warn(`[Socket] WARNING: No driver found in DB with id=${id}`);
         }
-      } catch { /* ignore */ }
+      } catch (err) {
+        console.error(`[Socket] DB lookup error for driver ${id}:`, err.message);
+      }
 
       socket.on('driver:location_update', async (data) => {
         // Broadcast to operator dashboard (use looked-up operator_id)
